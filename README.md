@@ -1,4 +1,4 @@
-# jstack
+# TrimKit
 
 A collection of Claude Code hooks, skills, and settings snippets. Clone it once and symlink everything into your Claude Code setup so every project benefits from the same guardrails and utilities.
 
@@ -13,8 +13,8 @@ A collection of Claude Code hooks, skills, and settings snippets. Clone it once 
 ## Install
 
 ```bash
-git clone https://github.com/yourusername/jstack.git
-cd jstack
+git clone https://github.com/yourusername/trimkit.git
+cd trimkit
 ./install.sh
 ```
 

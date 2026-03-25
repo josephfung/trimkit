@@ -1,8 +1,8 @@
-# jstack Implementation Plan
+# trimkit Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Set up the jstack repo with the no-chaining hook, bats tests, install script, settings snippet, CI, and README.
+**Goal:** Set up the trimkit repo with the no-chaining hook, bats tests, install script, settings snippet, CI, and README.
 
 **Architecture:** Flat repo mirroring `~/.claude/` structure. Hooks are bash scripts tested with bats-core (git submodule). Install script symlinks hooks into `~/.claude/hooks/`.
 
@@ -22,26 +22,26 @@ bats-assert provides cleaner assertions (`assert_output`, `assert_success`) and 
 - [ ] **Step 1: Add bats-core submodule**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack submodule add https://github.com/bats-core/bats-core.git tests/test_helper/bats-core
+git -C /Users/josephfung/Projects/trimkit submodule add https://github.com/bats-core/bats-core.git tests/test_helper/bats-core
 ```
 
 - [ ] **Step 2: Add bats-support submodule**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack submodule add https://github.com/bats-core/bats-support.git tests/test_helper/bats-support
+git -C /Users/josephfung/Projects/trimkit submodule add https://github.com/bats-core/bats-support.git tests/test_helper/bats-support
 ```
 
 - [ ] **Step 3: Add bats-assert submodule**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack submodule add https://github.com/bats-core/bats-assert.git tests/test_helper/bats-assert
+git -C /Users/josephfung/Projects/trimkit submodule add https://github.com/bats-core/bats-assert.git tests/test_helper/bats-assert
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add .gitmodules tests/test_helper/
-git -C /Users/josephfung/Projects/jstack commit -m "chore: add bats-core, bats-support, bats-assert as submodules"
+git -C /Users/josephfung/Projects/trimkit add .gitmodules tests/test_helper/
+git -C /Users/josephfung/Projects/trimkit commit -m "chore: add bats-core, bats-support, bats-assert as submodules"
 ```
 
 ---
@@ -56,20 +56,20 @@ The existing `~/.claude/hooks/no-chaining.sh` gets copied into the repo. We don'
 - [ ] **Step 1: Copy the hook into the repo**
 
 ```bash
-cp /Users/josephfung/.claude/hooks/no-chaining.sh /Users/josephfung/Projects/jstack/hooks/no-chaining.sh
+cp /Users/josephfung/.claude/hooks/no-chaining.sh /Users/josephfung/Projects/trimkit/hooks/no-chaining.sh
 ```
 
 - [ ] **Step 2: Ensure it's executable**
 
 ```bash
-chmod +x /Users/josephfung/Projects/jstack/hooks/no-chaining.sh
+chmod +x /Users/josephfung/Projects/trimkit/hooks/no-chaining.sh
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add hooks/no-chaining.sh
-git -C /Users/josephfung/Projects/jstack commit -m "feat: add no-chaining hook"
+git -C /Users/josephfung/Projects/trimkit add hooks/no-chaining.sh
+git -C /Users/josephfung/Projects/trimkit commit -m "feat: add no-chaining hook"
 ```
 
 ---
@@ -157,7 +157,7 @@ setup() {
 - [ ] **Step 2: Run the tests**
 
 ```bash
-/Users/josephfung/Projects/jstack/tests/test_helper/bats-core/bin/bats /Users/josephfung/Projects/jstack/tests/hooks/no-chaining.bats
+/Users/josephfung/Projects/trimkit/tests/test_helper/bats-core/bin/bats /Users/josephfung/Projects/trimkit/tests/hooks/no-chaining.bats
 ```
 
 Expected: All tests pass.
@@ -169,8 +169,8 @@ Iterate until all tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add tests/hooks/no-chaining.bats
-git -C /Users/josephfung/Projects/jstack commit -m "test: add bats tests for no-chaining hook"
+git -C /Users/josephfung/Projects/trimkit add tests/hooks/no-chaining.bats
+git -C /Users/josephfung/Projects/trimkit commit -m "test: add bats tests for no-chaining hook"
 ```
 
 ---
@@ -207,7 +207,7 @@ This is a reference file showing what users need to merge into their `~/.claude/
 - [ ] **Step 2: Validate it's valid JSON**
 
 ```bash
-jq . /Users/josephfung/Projects/jstack/settings/hooks.json
+jq . /Users/josephfung/Projects/trimkit/settings/hooks.json
 ```
 
 Expected: Pretty-printed JSON, exit 0.
@@ -215,8 +215,8 @@ Expected: Pretty-printed JSON, exit 0.
 - [ ] **Step 3: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add settings/hooks.json
-git -C /Users/josephfung/Projects/jstack commit -m "docs: add settings snippet for hook wiring"
+git -C /Users/josephfung/Projects/trimkit add settings/hooks.json
+git -C /Users/josephfung/Projects/trimkit commit -m "docs: add settings snippet for hook wiring"
 ```
 
 ---
@@ -237,8 +237,8 @@ git -C /Users/josephfung/Projects/jstack commit -m "docs: add settings snippet f
 - [ ] **Step 2: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add .gitignore
-git -C /Users/josephfung/Projects/jstack commit -m "chore: add .gitignore"
+git -C /Users/josephfung/Projects/trimkit add .gitignore
+git -C /Users/josephfung/Projects/trimkit commit -m "chore: add .gitignore"
 ```
 
 ---
@@ -252,7 +252,7 @@ git -C /Users/josephfung/Projects/jstack commit -m "chore: add .gitignore"
 
 ```bash
 #!/bin/bash
-# install.sh — Symlink jstack hooks into ~/.claude/hooks/
+# install.sh — Symlink trimkit hooks into ~/.claude/hooks/
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -292,7 +292,7 @@ done
 
 # Summary
 echo ""
-echo "=== jstack install ==="
+echo "=== trimkit install ==="
 
 if [ ${#installed[@]} -gt 0 ]; then
   echo ""
@@ -321,7 +321,7 @@ echo "into your ~/.claude/settings.json"
 - [ ] **Step 2: Make it executable**
 
 ```bash
-chmod +x /Users/josephfung/Projects/jstack/install.sh
+chmod +x /Users/josephfung/Projects/trimkit/install.sh
 ```
 
 - [ ] **Step 3: Test the install script**
@@ -329,7 +329,7 @@ chmod +x /Users/josephfung/Projects/jstack/install.sh
 Run it. Since `~/.claude/hooks/no-chaining.sh` already exists as a regular file (not a symlink), it should warn and not overwrite.
 
 ```bash
-/Users/josephfung/Projects/jstack/install.sh
+/Users/josephfung/Projects/trimkit/install.sh
 ```
 
 Expected output includes a warning for `no-chaining.sh`.
@@ -340,7 +340,7 @@ Remove the standalone file and re-run install to create the symlink:
 
 ```bash
 rm /Users/josephfung/.claude/hooks/no-chaining.sh
-/Users/josephfung/Projects/jstack/install.sh
+/Users/josephfung/Projects/trimkit/install.sh
 ```
 
 Expected: `no-chaining.sh` shows as installed.
@@ -356,8 +356,8 @@ Expected: `{"continue":false,"stopReason":"Command chaining detected..."}` — c
 - [ ] **Step 6: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add install.sh
-git -C /Users/josephfung/Projects/jstack commit -m "feat: add install script for symlinking hooks"
+git -C /Users/josephfung/Projects/trimkit add install.sh
+git -C /Users/josephfung/Projects/trimkit commit -m "feat: add install script for symlinking hooks"
 ```
 
 ---
@@ -396,8 +396,8 @@ jobs:
 - [ ] **Step 2: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add .github/workflows/test.yml
-git -C /Users/josephfung/Projects/jstack commit -m "ci: add GitHub Actions workflow for bats tests"
+git -C /Users/josephfung/Projects/trimkit add .github/workflows/test.yml
+git -C /Users/josephfung/Projects/trimkit commit -m "ci: add GitHub Actions workflow for bats tests"
 ```
 
 ---
@@ -409,13 +409,13 @@ git -C /Users/josephfung/Projects/jstack commit -m "ci: add GitHub Actions workf
 
 - [ ] **Step 1: Write the README**
 
-Cover: what jstack is, what's included, how to install, how to run tests, how to add hooks to settings.json. Keep it short.
+Cover: what trimkit is, what's included, how to install, how to run tests, how to add hooks to settings.json. Keep it short.
 
 - [ ] **Step 2: Commit**
 
 ```bash
-git -C /Users/josephfung/Projects/jstack add README.md
-git -C /Users/josephfung/Projects/jstack commit -m "docs: add README"
+git -C /Users/josephfung/Projects/trimkit add README.md
+git -C /Users/josephfung/Projects/trimkit commit -m "docs: add README"
 ```
 
 ---
@@ -425,13 +425,13 @@ git -C /Users/josephfung/Projects/jstack commit -m "docs: add README"
 - [ ] **Step 1: Create private repo on GitHub**
 
 ```bash
-gh repo create jstack --private --source=/Users/josephfung/Projects/jstack --push
+gh repo create trimkit --private --source=/Users/josephfung/Projects/trimkit --push
 ```
 
 - [ ] **Step 2: Verify CI started**
 
 ```bash
-gh run list --repo josephfung/jstack --limit 1
+gh run list --repo josephfung/trimkit --limit 1
 ```
 
 Expected: A workflow run in progress or completed.

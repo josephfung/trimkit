@@ -1,4 +1,4 @@
-# jstack — Claude Code Toolkit
+# TrimKit — Claude Code Toolkit
 
 ## Purpose
 
@@ -7,7 +7,7 @@ A shareable, testable repository of Claude Code hooks, skills, and settings snip
 ## Repo Structure
 
 ```
-jstack/
+TrimKit/
 ├── hooks/
 │   └── no-chaining.sh          # PreToolUse hook: blocks command chaining
 ├── settings/

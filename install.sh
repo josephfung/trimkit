@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh — Symlink jstack hooks into ~/.claude/hooks/
+# install.sh — Symlink TrimKit hooks into ~/.claude/hooks/
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -39,7 +39,7 @@ done
 
 # Summary
 echo ""
-echo "=== jstack install ==="
+echo "=== TrimKit install ==="
 
 if [ ${#installed[@]} -gt 0 ]; then
   echo ""
