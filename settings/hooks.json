@@ -1,0 +1,17 @@
+{
+  "_comment": "Merge this into your ~/.claude/settings.json under hooks.PreToolUse",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/no-chaining.sh",
+            "statusMessage": "Checking for command chaining..."
+          }
+        ]
+      }
+    ]
+  }
+}
