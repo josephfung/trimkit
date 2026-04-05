@@ -1,0 +1,18 @@
+{
+  "deployments": [
+    {
+      "name": "MyApp",
+      "env": "prod",
+      "ssh": "ssh deploy@myapp.example.com",
+      "app_dir": "/opt/myapp",
+      "containers": ["myapp", "myapp-web", "caddy"]
+    },
+    {
+      "name": "MyDB",
+      "env": "prod",
+      "ssh": "ssh -p 2222 -i ~/.ssh/my_vps_key deploy@mydb.example.com",
+      "app_dir": "/opt/mydb",
+      "containers": ["mydb", "mydb-postgres", "caddy"]
+    }
+  ]
+}
