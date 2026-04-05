@@ -1,0 +1,40 @@
+# Claude Code plugins managed by TrimKit.
+# Each line is a plugin in the form: name@marketplace
+# Run install.sh to install all plugins listed here.
+# Blank lines and lines starting with # are ignored.
+
+# Superpowers: brainstorming, planning, TDD, debugging, git worktrees, and more
+superpowers@claude-plugins-official
+
+# Claude API / Anthropic SDK helpers (pdf, docx, pptx, xlsx, etc.)
+claude-api@anthropic-agent-skills
+
+# Frontend design guidance
+frontend-design@claude-plugins-official
+
+# Code review workflow
+code-review@claude-plugins-official
+
+# Feature development workflow
+feature-dev@claude-plugins-official
+
+# Code simplification and refactoring
+code-simplifier@claude-plugins-official
+
+# Commit, push, and PR commands
+commit-commands@claude-plugins-official
+
+# PR review toolkit (multi-agent review)
+pr-review-toolkit@claude-plugins-official
+
+# CLAUDE.md management
+claude-md-management@claude-plugins-official
+
+# GitHub integration
+github@claude-plugins-official
+
+# Security guidance
+security-guidance@claude-plugins-official
+
+# Claude Code setup and automation recommendations
+claude-code-setup@claude-plugins-official
