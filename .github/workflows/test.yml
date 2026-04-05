@@ -18,4 +18,4 @@ jobs:
         run: sudo apt-get install -y jq
 
       - name: Run tests
-        run: ./tests/test_helper/bats-core/bin/bats tests/
+        run: ./tests/test_helper/bats-core/bin/bats tests/hooks/ tests/install/
