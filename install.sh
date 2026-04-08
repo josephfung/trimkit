@@ -131,6 +131,92 @@ install_plugins() {
 install_plugins
 
 # ---------------------------------------------------------------------------
+# Hooks merge
+# ---------------------------------------------------------------------------
+
+hooks_merged=()
+hooks_skipped=()
+hooks_failed=()
+
+merge_hooks() {
+  local src="$SCRIPT_DIR/settings/hooks.json"
+  local dst="$HOME/.claude/settings.json"
+
+  if [ ! -f "$src" ]; then
+    return
+  fi
+
+  # Ensure destination exists with at least an empty object
+  if [ ! -f "$dst" ]; then
+    echo "{}" > "$dst"
+  fi
+
+  # Use Python to merge hooks without duplicates.
+  # For each hook event type (PreToolUse, etc.) and each matcher entry in the
+  # source, find or create the matching entry in the destination, then add any
+  # hook commands that are not already present (matched by "command" field).
+  merge_result="$(python3 - "$src" "$dst" <<'PYEOF'
+import sys, json, copy
+
+src_path, dst_path = sys.argv[1], sys.argv[2]
+
+with open(src_path) as f:
+    src = json.load(f)
+with open(dst_path) as f:
+    dst = json.load(f)
+
+src_hooks = src.get("hooks", {})
+dst_hooks = dst.setdefault("hooks", {})
+
+added = []
+skipped = []
+
+for event_type, src_entries in src_hooks.items():
+    dst_entries = dst_hooks.setdefault(event_type, [])
+
+    for src_entry in src_entries:
+        matcher = src_entry.get("matcher", "")
+
+        # Find existing destination entry with same matcher
+        dst_entry = next((e for e in dst_entries if e.get("matcher") == matcher), None)
+        if dst_entry is None:
+            dst_entry = {"matcher": matcher, "hooks": []}
+            dst_entries.append(dst_entry)
+
+        dst_cmds = {h.get("command") for h in dst_entry.get("hooks", [])}
+
+        for hook in src_entry.get("hooks", []):
+            cmd = hook.get("command")
+            if cmd in dst_cmds:
+                skipped.append(cmd)
+            else:
+                dst_entry.setdefault("hooks", []).append(copy.deepcopy(hook))
+                dst_cmds.add(cmd)
+                added.append(cmd)
+
+with open(dst_path, "w") as f:
+    json.dump(dst, f, indent=2)
+    f.write("\n")
+
+# Report results on stdout for the shell to parse
+for cmd in added:
+    print("ADDED:" + cmd)
+for cmd in skipped:
+    print("SKIPPED:" + cmd)
+PYEOF
+  )" || { hooks_failed+=("settings/hooks.json (python error)"); return; }
+
+  while IFS= read -r line; do
+    case "$line" in
+      ADDED:*)   hooks_merged+=("${line#ADDED:}") ;;
+      SKIPPED:*) hooks_skipped+=("${line#SKIPPED:}") ;;
+    esac
+  done <<< "$merge_result"
+}
+
+merge_hooks
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
@@ -173,11 +259,27 @@ if [ ${#plugins_failed[@]} -gt 0 ]; then
   for f in "${plugins_failed[@]}"; do echo "  ✗ $f"; done
 fi
 
-echo ""
-echo "Note: To wire hooks into Claude Code, merge the config from"
-echo "  $SCRIPT_DIR/settings/hooks.json"
-echo "into your ~/.claude/settings.json"
-echo ""
-echo "Note: To use the sysops agent, create your deployment registry at"
-echo "  ~/.claude/sysops/deployments.json"
-echo "See $SCRIPT_DIR/sysops/deployments.example.json for the format."
+if [ ${#hooks_merged[@]} -gt 0 ]; then
+  echo ""
+  echo "Hooks merged into ~/.claude/settings.json:"
+  for f in "${hooks_merged[@]}"; do echo "  ✓ $f"; done
+fi
+
+if [ ${#hooks_skipped[@]} -gt 0 ]; then
+  echo ""
+  echo "Hooks already present (skipped):"
+  for f in "${hooks_skipped[@]}"; do echo "  - $f"; done
+fi
+
+if [ ${#hooks_failed[@]} -gt 0 ]; then
+  echo ""
+  echo "Hook merge failures:"
+  for f in "${hooks_failed[@]}"; do echo "  ✗ $f"; done
+fi
+
+if [ ! -f "$HOME/.claude/sysops/deployments.json" ]; then
+  echo ""
+  echo "Note: To use the sysops agent, create your deployment registry at"
+  echo "  ~/.claude/sysops/deployments.json"
+  echo "See $SCRIPT_DIR/sysops/deployments.example.json for the format."
+fi
