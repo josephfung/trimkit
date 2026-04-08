@@ -8,7 +8,6 @@
 # Known limitations:
 # - Quote stripping is naive (doesn't handle escaped quotes or nested quotes)
 # - Won't catch chaining inside $() or backtick subshells
-# - Legitimate single-command pipes (e.g., git log | head) are also blocked
 
 command=$(jq -r '.tool_input.command // empty')
 [ -z "$command" ] && exit 0
@@ -26,6 +25,19 @@ fi
 # Also exclude redirections like 2>&1 which contain no standalone |
 no_double_pipe=$(printf '%s' "$stripped" | sed 's/||//g')
 if printf '%s' "$no_double_pipe" | grep -qF '|'; then
-  printf '{"continue":false,"stopReason":"Pipe chaining detected (|). Run each command as a separate Bash call."}\n'
-  exit 0
+  # Allow pipes if every segment after the first goes to a safe read-only command.
+  # These commands filter/display output and cannot cause destructive side effects.
+  safe_targets=true
+  while IFS= read -r segment; do
+    trimmed=$(printf '%s' "$segment" | sed 's/^[[:space:]]*//')
+    if ! printf '%s' "$trimmed" | grep -qE '^(tail|head|grep|egrep|fgrep|wc|sort|uniq|cut|awk|sed|tr|cat)([[:space:]]|$)'; then
+      safe_targets=false
+      break
+    fi
+  done < <(printf '%s' "$no_double_pipe" | tr '|' '\n' | tail -n +2)
+
+  if [ "$safe_targets" = false ]; then
+    printf '{"continue":false,"stopReason":"Pipe chaining detected (|). Run each command as a separate Bash call."}\n'
+    exit 0
+  fi
 fi
