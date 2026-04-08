@@ -52,18 +52,51 @@ For each deployment, run these commands via SSH and collect results:
 
 Present a compact report per deployment. Items that are fine get one line. Issues (pending updates, restart required, unhealthy containers) are called out clearly.
 
+### Container manifest check
+
+After collecting the container list, cross-reference it against the `containers` list in `deployments.json`:
+
+- **Expected containers**: Report each with its health status (✓ or ✗)
+- **Unregistered containers**: Any running container NOT in the manifest must be called out separately, clearly labeled as unregistered
+
+For each unregistered container, collect additional details to aid evaluation:
+
+```bash
+# Image, creation time, command, and ports for an unregistered container
+<ssh> "docker inspect <container_name> --format '{{.Config.Image}}\t{{.Created}}\t{{.Config.Cmd}}\t{{json .NetworkSettings.Ports}}'"
+```
+
+After the report, ask the user:
+
+> **Unregistered containers found on [deployment].** For each one above, should I:
+> **(A) Add it to the manifest** — if this container is expected and was just never registered
+> **(B) Flag as unexpected** — I'll evaluate it for signs of malicious activity (unusual image, suspicious ports, unknown origin, etc.)
+
+If the user chooses (B) for any container, investigate it:
+- Is the image from a known/trusted registry? Is the tag pinned or `:latest`?
+- What ports does it expose? Are they unusual (e.g. 4444, 1337, high-range random ports)?
+- What command is it running? Does it make outbound connections or bind to 0.0.0.0?
+- When was it created relative to the last known-good state?
+- Check for signs of crypto mining, reverse shells, or data exfiltration tooling
+
+Report your assessment clearly: **Likely benign**, **Suspicious**, or **Recommend immediate removal**.
+
+If the user chooses (A), update `~/.claude/sysops/deployments.json` to add the container name to the relevant deployment's `containers` list.
+
 Example output format:
 
 ```
 Pulse [prod] ✓
   11 packages can be updated · restart required
   Disk: 29.6% · Memory: 35% · Load: 0.09
-  Containers: pulse ✓  pulse-web ✓  pulse-caddy ✓
+  Containers (manifest): pulse ✓  pulse-web ✓  pulse-caddy ✓
+  Containers (unregistered): redis-temp ⚠  [image: redis:latest, created: 2026-04-07, ports: 6379/tcp]
 
 Curia [prod] ✓
   0 updates · no restart needed
   Disk: 18% · Memory: 42% · Load: 0.04
-  Containers: curia ✓  curia-postgres-1 ✓  caddy ✓
+  Containers (manifest): curia ✓  curia-postgres-1 ✓  caddy ✓
+  Containers (unregistered): none
 ```
 
 ## Maintenance
@@ -99,6 +132,8 @@ Then poll until the server comes back: attempt `<ssh> "echo ok"` every 15 second
 ```
 
 Cross-reference the output against the `containers` list in `deployments.json`. Report each container's status. Flag any expected container that is missing or not healthy.
+
+Also flag any running container **not** in the manifest — collect its image, creation time, and ports (same `docker inspect` command as in the status check). After the maintenance report, ask the user whether to add it to the manifest or investigate it for malicious activity (same A/B prompt as in the status check).
 
 ### 5. Log to memory
 
