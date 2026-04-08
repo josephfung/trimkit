@@ -6,9 +6,6 @@
 # Superpowers: brainstorming, planning, TDD, debugging, git worktrees, and more
 superpowers@claude-plugins-official
 
-# Claude API / Anthropic SDK helpers (pdf, docx, pptx, xlsx, etc.)
-claude-api@anthropic-agent-skills
-
 # Frontend design guidance
 frontend-design@claude-plugins-official
 
