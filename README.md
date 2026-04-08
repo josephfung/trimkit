@@ -1,5 +1,7 @@
 # TrimKit
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A collection of Claude Code hooks, agents, and skills. Clone it once and symlink everything into your Claude Code setup so every project benefits from the same guardrails and utilities.
 
 ## What's included
