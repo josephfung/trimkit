@@ -2,15 +2,30 @@
 # install.sh — Bootstrap TrimKit into ~/.claude
 #   1. Symlinks hooks, agents, and skills into ~/.claude/
 #   2. Installs Claude Code plugins listed in plugins/plugins.txt
+#
+# Usage: install.sh [--upgrade]
+#   --upgrade  Replace existing real files/dirs with symlinks (backs up first).
+#              Use this after a TrimKit update to ensure managed files stay
+#              in sync. Symlinks are never replaced — they already auto-update.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGINS_MANIFEST="$SCRIPT_DIR/plugins/plugins.txt"
 
+# Parse flags
+UPGRADE=false
+for arg in "$@"; do
+  case "$arg" in
+    --upgrade) UPGRADE=true ;;
+    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+  esac
+done
+
 # Track actions for summary
 installed=()
 skipped=()
 warned=()
+upgraded=()
 
 # symlink_files <src_dir> <dst_dir>
 # Symlinks each file in src_dir into dst_dir.
@@ -36,7 +51,43 @@ symlink_files() {
     fi
 
     if [ -e "$dst" ]; then
-      warned+=("$name (exists at $dst, not overwriting)")
+      if [ "$UPGRADE" = true ]; then
+        local bak="${dst}.bak"
+        # Preflight: refuse to upgrade if the source no longer exists — would
+        # destroy the existing file and leave a dangling symlink in its place.
+        if [ ! -e "$src" ]; then
+          warned+=("$name (source missing in TrimKit, not upgraded)")
+          continue
+        fi
+        # Don't silently overwrite a prior backup — the user may need it.
+        if [ -e "$bak" ]; then
+          warned+=("$name (${name}.bak already exists — delete it first, then re-run --upgrade)")
+          continue
+        fi
+        # Three-step atomic-ish replace: back up, remove, link.
+        # Each step is guarded so a failure stops early rather than leaving
+        # $dst in a half-deleted state.
+        if ! cp "$dst" "$bak"; then
+          warned+=("$name (backup failed, not upgraded)")
+          continue
+        fi
+        if ! rm -f "$dst"; then
+          warned+=("$name (remove failed, not upgraded — backup at $bak)")
+          continue
+        fi
+        if ! ln -sf "$src" "$dst"; then
+          # $dst is now gone. Best-effort restore from backup.
+          if mv "$bak" "$dst" 2>/dev/null; then
+            warned+=("$name (symlink failed, original restored from backup)")
+          else
+            warned+=("$name (symlink failed AND restore failed — recover manually: mv \"$bak\" \"$dst\")")
+          fi
+          continue
+        fi
+        upgraded+=("$name (backed up to $bak)")
+      else
+        warned+=("$name (exists at $dst, not overwriting — re-run with --upgrade to replace)")
+      fi
       continue
     fi
 
@@ -73,7 +124,39 @@ symlink_dirs() {
     fi
 
     if [ -e "$dst" ]; then
-      warned+=("$name/ (exists at $dst, not overwriting)")
+      if [ "$UPGRADE" = true ]; then
+        local bak="${dst}.bak"
+        # Preflight: refuse to upgrade if the source no longer exists.
+        if [ ! -e "$src" ]; then
+          warned+=("$name/ (source missing in TrimKit, not upgraded)")
+          continue
+        fi
+        # Don't silently overwrite a prior backup.
+        if [ -e "$bak" ]; then
+          warned+=("$name/ (${name}.bak already exists — delete it first, then re-run --upgrade)")
+          continue
+        fi
+        # Three-step atomic-ish replace: back up, remove, link.
+        if ! cp -r "$dst" "$bak"; then
+          warned+=("$name/ (backup failed, not upgraded)")
+          continue
+        fi
+        if ! rm -rf "$dst"; then
+          warned+=("$name/ (remove failed, not upgraded — backup at $bak)")
+          continue
+        fi
+        if ! ln -sf "$src" "$dst"; then
+          if mv "$bak" "$dst" 2>/dev/null; then
+            warned+=("$name/ (symlink failed, original restored from backup)")
+          else
+            warned+=("$name/ (symlink failed AND restore failed — recover manually: mv \"$bak\" \"$dst\")")
+          fi
+          continue
+        fi
+        upgraded+=("$name/ (backed up to $bak)")
+      else
+        warned+=("$name/ (exists at $dst, not overwriting — re-run with --upgrade to replace)")
+      fi
       continue
     fi
 
@@ -233,6 +316,12 @@ if [ ${#skipped[@]} -gt 0 ]; then
   echo ""
   echo "Skipped:"
   for f in "${skipped[@]}"; do echo "  - $f"; done
+fi
+
+if [ ${#upgraded[@]} -gt 0 ]; then
+  echo ""
+  echo "Upgraded (replaced with symlinks):"
+  for f in "${upgraded[@]}"; do echo "  ↑ $f"; done
 fi
 
 if [ ${#warned[@]} -gt 0 ]; then
