@@ -19,9 +19,14 @@ setup() {
 }
 
 @test "blocks pipe |" {
-  run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"git log --oneline | head -5\"}}" | bash "$1"' -- "$HOOK"
+  run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"npm run build | cat\"}}" | bash "$1"' -- "$HOOK"
   assert_output --partial '"continue":false'
   assert_output --partial 'Pipe'
+}
+
+@test "allows safe pipe (read-only git | allowlisted filter)" {
+  run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"git log --oneline | head -5\"}}" | bash "$1"' -- "$HOOK"
+  assert_output ''
 }
 
 @test "allows simple command" {
