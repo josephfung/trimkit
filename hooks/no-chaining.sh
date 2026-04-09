@@ -15,28 +15,45 @@ command=$(jq -r '.tool_input.command // empty')
 # Strip single-quoted and double-quoted strings to avoid false positives
 stripped=$(printf '%s' "$command" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
 
-# Check for && or ||
-if printf '%s' "$stripped" | grep -qE '&&|\|\|'; then
-  printf '{"continue":false,"stopReason":"Command chaining detected (&&, ||). Run each command as a separate Bash call."}\n'
+# Helper: check that every segment in a newline-separated list starts with a safe
+# read-only command. Used for both | and || allowlisting.
+all_segments_safe() {
+  local segments="$1"
+  while IFS= read -r segment; do
+    local trimmed
+    trimmed=$(printf '%s' "$segment" | sed 's/^[[:space:]]*//')
+    [ -z "$trimmed" ] && continue
+    if ! printf '%s' "$trimmed" | grep -qE '^(tail|head|grep|egrep|fgrep|wc|sort|uniq|cut|awk|sed|tr|cat)([[:space:]]|$)'; then
+      return 1
+    fi
+  done <<< "$segments"
+  return 0
+}
+
+# Check for &&  — always blocked, no exceptions.
+if printf '%s' "$stripped" | grep -qE '&&'; then
+  printf '{"continue":false,"stopReason":"Command chaining detected (&&). Run each command as a separate Bash call."}\n'
   exit 0
 fi
 
-# Check for pipes: remove || (already caught above), then look for remaining |
+# Check for || — allow only if EVERY segment is a safe read-only command.
+# Unlike pipes, both sides of || execute independently, so we must vet all of them.
+if printf '%s' "$stripped" | grep -qF '||'; then
+  segments=$(printf '%s' "$stripped" | sed 's/||/\n/g')
+  if ! all_segments_safe "$segments"; then
+    printf '{"continue":false,"stopReason":"Command chaining detected (||). Run each command as a separate Bash call."}\n'
+    exit 0
+  fi
+fi
+
+# Check for pipes: remove || (already handled above), then look for remaining |
 # Also exclude redirections like 2>&1 which contain no standalone |
 no_double_pipe=$(printf '%s' "$stripped" | sed 's/||//g')
 if printf '%s' "$no_double_pipe" | grep -qF '|'; then
   # Allow pipes if every segment after the first goes to a safe read-only command.
-  # These commands filter/display output and cannot cause destructive side effects.
-  safe_targets=true
-  while IFS= read -r segment; do
-    trimmed=$(printf '%s' "$segment" | sed 's/^[[:space:]]*//')
-    if ! printf '%s' "$trimmed" | grep -qE '^(tail|head|grep|egrep|fgrep|wc|sort|uniq|cut|awk|sed|tr|cat)([[:space:]]|$)'; then
-      safe_targets=false
-      break
-    fi
-  done < <(printf '%s' "$no_double_pipe" | tr '|' '\n' | tail -n +2)
-
-  if [ "$safe_targets" = false ]; then
+  # The first segment can be anything (its output is just piped, never destructive).
+  segments=$(printf '%s' "$no_double_pipe" | tr '|' '\n' | tail -n +2)
+  if ! all_segments_safe "$segments"; then
     printf '{"continue":false,"stopReason":"Pipe chaining detected (|). Run each command as a separate Bash call."}\n'
     exit 0
   fi
