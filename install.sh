@@ -2,15 +2,30 @@
 # install.sh — Bootstrap TrimKit into ~/.claude
 #   1. Symlinks hooks, agents, and skills into ~/.claude/
 #   2. Installs Claude Code plugins listed in plugins/plugins.txt
+#
+# Usage: install.sh [--upgrade]
+#   --upgrade  Replace existing real files/dirs with symlinks (backs up first).
+#              Use this after a TrimKit update to ensure managed files stay
+#              in sync. Symlinks are never replaced — they already auto-update.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGINS_MANIFEST="$SCRIPT_DIR/plugins/plugins.txt"
 
+# Parse flags
+UPGRADE=false
+for arg in "$@"; do
+  case "$arg" in
+    --upgrade) UPGRADE=true ;;
+    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+  esac
+done
+
 # Track actions for summary
 installed=()
 skipped=()
 warned=()
+upgraded=()
 
 # symlink_files <src_dir> <dst_dir>
 # Symlinks each file in src_dir into dst_dir.
@@ -36,7 +51,15 @@ symlink_files() {
     fi
 
     if [ -e "$dst" ]; then
-      warned+=("$name (exists at $dst, not overwriting)")
+      if [ "$UPGRADE" = true ]; then
+        # Back up the existing real file before replacing with a symlink
+        cp -r "$dst" "${dst}.bak"
+        rm -rf "$dst"
+        ln -sf "$src" "$dst"
+        upgraded+=("$name (backed up to ${dst}.bak)")
+      else
+        warned+=("$name (exists at $dst, not overwriting — re-run with --upgrade to replace)")
+      fi
       continue
     fi
 
@@ -73,7 +96,15 @@ symlink_dirs() {
     fi
 
     if [ -e "$dst" ]; then
-      warned+=("$name/ (exists at $dst, not overwriting)")
+      if [ "$UPGRADE" = true ]; then
+        # Back up the existing real directory before replacing with a symlink
+        cp -r "$dst" "${dst}.bak"
+        rm -rf "$dst"
+        ln -sf "$src" "$dst"
+        upgraded+=("$name/ (backed up to ${dst}.bak)")
+      else
+        warned+=("$name/ (exists at $dst, not overwriting — re-run with --upgrade to replace)")
+      fi
       continue
     fi
 
@@ -233,6 +264,12 @@ if [ ${#skipped[@]} -gt 0 ]; then
   echo ""
   echo "Skipped:"
   for f in "${skipped[@]}"; do echo "  - $f"; done
+fi
+
+if [ ${#upgraded[@]} -gt 0 ]; then
+  echo ""
+  echo "Upgraded (replaced with symlinks):"
+  for f in "${upgraded[@]}"; do echo "  ↑ $f"; done
 fi
 
 if [ ${#warned[@]} -gt 0 ]; then
