@@ -1,5 +1,5 @@
 {
-  "_comment": "Merge this into your ~/.claude/settings.json under hooks.PreToolUse",
+  "_comment": "Merge this into your ~/.claude/settings.json under hooks",
   "hooks": {
     "PreToolUse": [
       {
@@ -9,6 +9,18 @@
             "type": "command",
             "command": "~/.claude/hooks/no-chaining.sh",
             "statusMessage": "Checking for command chaining..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/prod-debug.sh",
+            "statusMessage": "Checking for prod-debug updates..."
           }
         ]
       }

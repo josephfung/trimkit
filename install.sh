@@ -283,3 +283,19 @@ if [ ! -f "$HOME/.claude/sysops/deployments.json" ]; then
   echo "  ~/.claude/sysops/deployments.json"
   echo "See $SCRIPT_DIR/sysops/deployments.example.json for the format."
 fi
+
+# Show prod-debug setup note only on fresh install (not on every re-run)
+prod_debug_just_installed=false
+for f in "${installed[@]+"${installed[@]}"}"; do
+  [ "$f" = "prod-debug/" ] && prod_debug_just_installed=true && break
+done
+if [ "$prod_debug_just_installed" = true ]; then
+  echo ""
+  echo "Note: prod-debug was installed. To set it up for a project:"
+  echo "  1. Create .claude/prod-debug/config.json in your project root"
+  echo "     (see $SCRIPT_DIR/skills/prod-debug/SKILL.md for the format)"
+  echo "  2. Run /prod-debug bootstrap in Claude Code to build the schema"
+  echo "     and container registry from your migrations and compose files"
+  echo "  3. Write .claude/prod-debug/prod-env.md by hand with SSH alias,"
+  echo "     domain, VPS details, and key env var names"
+fi
