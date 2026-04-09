@@ -52,11 +52,39 @@ symlink_files() {
 
     if [ -e "$dst" ]; then
       if [ "$UPGRADE" = true ]; then
-        # Back up the existing real file before replacing with a symlink
-        cp -r "$dst" "${dst}.bak"
-        rm -rf "$dst"
-        ln -sf "$src" "$dst"
-        upgraded+=("$name (backed up to ${dst}.bak)")
+        local bak="${dst}.bak"
+        # Preflight: refuse to upgrade if the source no longer exists — would
+        # destroy the existing file and leave a dangling symlink in its place.
+        if [ ! -e "$src" ]; then
+          warned+=("$name (source missing in TrimKit, not upgraded)")
+          continue
+        fi
+        # Don't silently overwrite a prior backup — the user may need it.
+        if [ -e "$bak" ]; then
+          warned+=("$name (${name}.bak already exists — delete it first, then re-run --upgrade)")
+          continue
+        fi
+        # Three-step atomic-ish replace: back up, remove, link.
+        # Each step is guarded so a failure stops early rather than leaving
+        # $dst in a half-deleted state.
+        if ! cp "$dst" "$bak"; then
+          warned+=("$name (backup failed, not upgraded)")
+          continue
+        fi
+        if ! rm -f "$dst"; then
+          warned+=("$name (remove failed, not upgraded — backup at $bak)")
+          continue
+        fi
+        if ! ln -sf "$src" "$dst"; then
+          # $dst is now gone. Best-effort restore from backup.
+          if mv "$bak" "$dst" 2>/dev/null; then
+            warned+=("$name (symlink failed, original restored from backup)")
+          else
+            warned+=("$name (symlink failed AND restore failed — recover manually: mv \"$bak\" \"$dst\")")
+          fi
+          continue
+        fi
+        upgraded+=("$name (backed up to $bak)")
       else
         warned+=("$name (exists at $dst, not overwriting — re-run with --upgrade to replace)")
       fi
@@ -97,11 +125,35 @@ symlink_dirs() {
 
     if [ -e "$dst" ]; then
       if [ "$UPGRADE" = true ]; then
-        # Back up the existing real directory before replacing with a symlink
-        cp -r "$dst" "${dst}.bak"
-        rm -rf "$dst"
-        ln -sf "$src" "$dst"
-        upgraded+=("$name/ (backed up to ${dst}.bak)")
+        local bak="${dst}.bak"
+        # Preflight: refuse to upgrade if the source no longer exists.
+        if [ ! -e "$src" ]; then
+          warned+=("$name/ (source missing in TrimKit, not upgraded)")
+          continue
+        fi
+        # Don't silently overwrite a prior backup.
+        if [ -e "$bak" ]; then
+          warned+=("$name/ (${name}.bak already exists — delete it first, then re-run --upgrade)")
+          continue
+        fi
+        # Three-step atomic-ish replace: back up, remove, link.
+        if ! cp -r "$dst" "$bak"; then
+          warned+=("$name/ (backup failed, not upgraded)")
+          continue
+        fi
+        if ! rm -rf "$dst"; then
+          warned+=("$name/ (remove failed, not upgraded — backup at $bak)")
+          continue
+        fi
+        if ! ln -sf "$src" "$dst"; then
+          if mv "$bak" "$dst" 2>/dev/null; then
+            warned+=("$name/ (symlink failed, original restored from backup)")
+          else
+            warned+=("$name/ (symlink failed AND restore failed — recover manually: mv \"$bak\" \"$dst\")")
+          fi
+          continue
+        fi
+        upgraded+=("$name/ (backed up to $bak)")
       else
         warned+=("$name/ (exists at $dst, not overwriting — re-run with --upgrade to replace)")
       fi
