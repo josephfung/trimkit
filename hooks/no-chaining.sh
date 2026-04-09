@@ -50,9 +50,9 @@ fi
 # Also exclude redirections like 2>&1 which contain no standalone |
 no_double_pipe=$(printf '%s' "$stripped" | sed 's/||//g')
 if printf '%s' "$no_double_pipe" | grep -qF '|'; then
-  # Allow pipes if every segment after the first goes to a safe read-only command.
-  # The first segment can be anything (its output is just piped, never destructive).
-  segments=$(printf '%s' "$no_double_pipe" | tr '|' '\n' | tail -n +2)
+  # Allow pipes only if EVERY segment (including the first) is a safe read-only command.
+  # This prevents piping output of destructive commands even into safe filters.
+  segments=$(printf '%s' "$no_double_pipe" | tr '|' '\n')
   if ! all_segments_safe "$segments"; then
     printf '{"continue":false,"stopReason":"Pipe chaining detected (|). Run each command as a separate Bash call."}\n'
     exit 0
