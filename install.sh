@@ -168,6 +168,7 @@ symlink_dirs() {
 symlink_files "$SCRIPT_DIR/hooks"   "$HOME/.claude/hooks"
 symlink_files "$SCRIPT_DIR/agents"  "$HOME/.claude/agents"
 symlink_dirs  "$SCRIPT_DIR/skills"  "$HOME/.claude/skills"
+symlink_files "$SCRIPT_DIR/bin"     "$HOME/.trimkit/bin"
 
 # ---------------------------------------------------------------------------
 # Plugins
@@ -364,6 +365,20 @@ if [ ${#hooks_failed[@]} -gt 0 ]; then
   echo ""
   echo "Hook merge failures:"
   for f in "${hooks_failed[@]}"; do echo "  ✗ $f"; done
+fi
+
+# Show bin PATH note on first install of any bin script
+bin_just_installed=false
+for f in "${installed[@]+"${installed[@]}"}"; do
+  [[ "$f" == trimkit-* ]] && bin_just_installed=true && break
+done
+if [ "$bin_just_installed" = true ]; then
+  if ! echo "$PATH" | grep -qF "$HOME/.trimkit/bin"; then
+    echo ""
+    echo "Note: ~/.trimkit/bin is not on your PATH."
+    echo "  Add this to your shell profile (~/.zshrc or ~/.bashrc):"
+    echo "    export PATH=\"\$HOME/.trimkit/bin:\$PATH\""
+  fi
 fi
 
 if [ ! -f "$HOME/.claude/sysops/deployments.json" ]; then
