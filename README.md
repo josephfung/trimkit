@@ -1,6 +1,8 @@
 # TrimKit
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](https://github.com/josephfung/trimkit)
+[![Tests](https://github.com/josephfung/trimkit/actions/workflows/test.yml/badge.svg)](https://github.com/josephfung/trimkit/actions/workflows/test.yml)
 
 A collection of Claude Code hooks, agents, and skills. Clone it once and symlink everything into your Claude Code setup so every project benefits from the same guardrails and utilities.
 
