@@ -10,7 +10,8 @@ A collection of Claude Code hooks, agents, and skills. Clone it once and symlink
 
 | Hook | Description |
 |------|-------------|
-| `no-chaining.sh` | Blocks `&&` and `\|\|` command chaining in Bash tool calls, forcing each command to be issued as a separate call |
+| `no-chaining.sh` | Blocks `&&` and `\|\|` command chaining in Bash tool calls, with an allowlist for safe read-only commands and npm scripts |
+| `prod-debug.sh` | Watches migration and compose file writes and prompts Claude to keep prod-debug data files in sync |
 
 **Agents**
 
@@ -22,21 +23,32 @@ A collection of Claude Code hooks, agents, and skills. Clone it once and symlink
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| `sysops` | `/sysops [args]` | Dispatches to the sysops agent for status checks or maintenance |
+| `sysops` | `/sysops [args]` | Health checks and updates via the sysops agent |
+| `prod-debug` | `/prod-debug [args]` | Production debugging with pre-loaded DB schema and container registry |
+
+**Plugins**
+
+`install.sh` also installs a curated set of Claude Code plugins (superpowers, code-review, feature-dev, and more). See [`plugins/plugins.txt`](plugins/plugins.txt) for the full list.
 
 ## Install
 
 ```bash
-git clone https://github.com/yourusername/trimkit.git
+git clone https://github.com/josephfung/trimkit.git
 cd trimkit
 ./install.sh
 ```
 
-`install.sh` symlinks hooks, agents, and skills into `~/.claude/`. After that, merge `settings/hooks.json` into `~/.claude/settings.json` to register the hooks with Claude Code.
+The installer:
+- Symlinks hooks, agents, and skills into `~/.claude/`
+- Merges hook registrations into `~/.claude/settings.json`
+- Injects TrimKit hook compatibility tips into `~/.claude/CLAUDE.md`
+- Installs plugins via the `claude` CLI (skipped if Claude Code isn't installed yet)
+
+Re-run `./install.sh` at any time to pick up new additions after a `git pull`. Use `./install.sh --upgrade` if you have existing non-symlinked files you want replaced.
 
 ## Sysops setup
 
-The sysops agent reads your deployment registry from `~/.claude/sysops/deployments.json`. You need to create this file yourself — it contains SSH connection details for your servers and is never committed anywhere.
+The sysops agent reads your deployment registry from `~/.claude/sysops/deployments.json`. This file is never committed — it contains SSH connection details for your servers.
 
 Copy the example as a starting point:
 
@@ -49,38 +61,15 @@ cp sysops/deployments.example.json ~/.claude/sysops/deployments.json
 Once the registry exists, use `/sysops` from any Claude Code session:
 
 ```
-/sysops             # health report across all deployments
-/sysops status      # same as above
+/sysops                        # health report across all deployments
 /sysops update Pulse           # apply updates to one server
 /sysops update my servers      # apply updates to all servers
+/sysops log                    # view recent maintenance history
 ```
 
 ## Run tests
 
-Install the bats test helpers (one-time):
-
 ```bash
-git submodule update --init --recursive
-```
-
-Run the suite:
-
-```bash
+git submodule update --init --recursive   # one-time setup
 ./tests/test_helper/bats-core/bin/bats tests/
 ```
-
-## Adding hooks
-
-1. Add your shell script to `hooks/`
-2. Write tests in `tests/hooks/`
-3. Add the corresponding settings snippet to `settings/`
-
-## Adding agents
-
-1. Add your agent definition to `agents/` (a single `.md` file)
-2. Document it in this README
-
-## Adding skills
-
-1. Add a directory to `skills/<skill-name>/` containing `SKILL.md`
-2. Document it in this README
