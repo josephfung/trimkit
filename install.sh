@@ -390,24 +390,42 @@ if [ "${#installed[@]}" -gt "$_installed_before_bin" ]; then
       _shell_profile=""
     fi
 
-    if [ -n "$_shell_profile" ]; then
-      # Ask the user interactively; default to yes on bare Enter.
-      printf "  Add it to %s now? [Y/n] " "$_shell_profile"
-      read -r _path_answer </dev/tty
+    # _manual_path_instructions is a helper to avoid repeating the fallback text.
+    _manual_path_instructions() {
+      echo "  Add this to your shell profile manually:"
+      echo "    export PATH=\"\$HOME/.trimkit/bin:\$PATH\""
+    }
+
+    # Only prompt interactively when /dev/tty is accessible. Non-interactive
+    # installs (curl | bash, CI, Docker) fail to open /dev/tty, which would
+    # abort the script under set -euo pipefail. We test first with a subshell
+    # open so the abort can't propagate.
+    if [ -n "$_shell_profile" ] && </dev/tty true 2>/dev/null; then
+      # Show which profile was detected so the user can say no if it's wrong.
+      printf "  Detected shell profile: %s\n" "$_shell_profile"
+      printf "  Add PATH export now? [Y/n] "
+      read -r _path_answer </dev/tty || _path_answer="n"
       case "${_path_answer:-Y}" in
         [Yy]*)
-          printf '\nexport PATH="$HOME/.trimkit/bin:$PATH"\n' >> "$_shell_profile"
-          echo "  Added. Run 'source $_shell_profile' or open a new terminal to apply."
+          # Idempotency: skip if the profile already references trimkit/bin
+          # (e.g. from a previous install in a shell that hasn't sourced the file yet).
+          if grep -qF '.trimkit/bin' "$_shell_profile" 2>/dev/null; then
+            echo "  $_shell_profile already has ~/.trimkit/bin — run 'source $_shell_profile' or open a new terminal."
+          elif printf '\nexport PATH="$HOME/.trimkit/bin:$PATH"\n' >> "$_shell_profile"; then
+            echo "  Added. Run 'source $_shell_profile' or open a new terminal to apply."
+          else
+            echo "  ERROR: Could not write to $_shell_profile (check permissions)." >&2
+            _manual_path_instructions
+          fi
           ;;
         *)
-          echo "  Skipped. Add this manually when ready:"
-          echo "    export PATH=\"\$HOME/.trimkit/bin:\$PATH\""
+          echo "  Skipped."
+          _manual_path_instructions
           ;;
       esac
     else
-      # No recognizable shell profile found — fall back to manual instructions.
-      echo "  Add this to your shell profile (~/.zshrc or ~/.bashrc):"
-      echo "    export PATH=\"\$HOME/.trimkit/bin:\$PATH\""
+      # No TTY (piped/CI install) or no recognizable shell profile — print manual instructions.
+      _manual_path_instructions
     fi
   fi
 fi
