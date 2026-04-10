@@ -4,7 +4,9 @@
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](https://github.com/josephfung/trimkit)
 [![Tests](https://github.com/josephfung/trimkit/actions/workflows/test.yml/badge.svg)](https://github.com/josephfung/trimkit/actions/workflows/test.yml)
 
-A collection of Claude Code hooks, agents, and skills. Clone it once and symlink everything into your Claude Code setup so every project benefits from the same guardrails and utilities.
+Guardrails and utilities for AI-assisted software development. Install it once and every Claude Code session inherits sensible defaults that keep you safe from the most common ways AI agents go wrong.
+
+TrimKit runs quietly in the background. It ships with practical out-of-the-box protection, and it's extensible so you can layer in your own coding standards and SDLC conventions over time. Most of it should feel invisible.
 
 ## What's included
 
