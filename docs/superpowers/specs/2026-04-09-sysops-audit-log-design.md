@@ -29,7 +29,7 @@ A shell script that:
 - Reads a JSON object from stdin
 - Injects `ts` (current UTC timestamp via `date -u +%Y-%m-%dT%H:%M:%SZ`)
 - Creates `~/.claude/sysops/` if it doesn't exist
-- Atomically appends the entry to `~/.claude/sysops/audit.jsonl` via a `.tmp` file + `mv`
+- Appends the entry to `~/.claude/sysops/audit.jsonl` via `printf '%s\n' "$json" >> file`, which is atomic on Linux/macOS for single-line writes under ~4KB (pipe buffer limit — well within our schema size)
 
 The script does not generate `session` or `project` — those are provided by the caller (the agent).
 
@@ -58,7 +58,7 @@ For maintenance runs, all of the above plus: `packages_upgraded` (int), `reboot_
 
 ### 3. Skill update (`skills/sysops/SKILL.md`)
 
-Add a `log` branch before the existing subagent delegation:
+If the argument starts with `log`, handle it directly rather than delegating to the subagent. Detect with: `[[ "$arg" == log* ]]`. Add this check before the existing subagent delegation:
 
 - `/sysops log` → pretty-print the last 10 entries from `~/.claude/sysops/audit.jsonl`
 - `/sysops log <deployment>` → filter to that deployment, last 10 entries
