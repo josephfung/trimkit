@@ -8,7 +8,7 @@ The sysops agent reads `~/.claude/sysops/deployments.json` at startup. See `depl
 
 ## Audit log
 
-Every sysops invocation writes a structured entry to `~/.claude/sysops/audit.jsonl`. The file is append-only — entries are never modified or deleted.
+Every `/sysops status` or `/sysops update` invocation writes a structured entry to `~/.claude/sysops/audit.jsonl`. The file is append-only — entries are never modified or deleted. Log-viewing commands (`/sysops log`) do not generate log entries.
 
 ### Log location
 
