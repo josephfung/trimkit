@@ -19,13 +19,20 @@ setup() {
 }
 
 @test "blocks pipe |" {
-  run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"npm run build | cat\"}}" | bash "$1"' -- "$HOOK"
+  # Safe npm source but unsafe sink — blocked regardless of source allowlist
+  run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"npm run build | bash\"}}" | bash "$1"' -- "$HOOK"
   assert_output --partial '"continue":false'
   assert_output --partial 'Pipe'
 }
 
 @test "allows safe pipe (read-only git | allowlisted filter)" {
   run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"git log --oneline | head -5\"}}" | bash "$1"' -- "$HOOK"
+  assert_output ''
+}
+
+@test "allows safe pipe (npm source | allowlisted filter)" {
+  # npm commands are allowed as pipe sources when the sink is a safe read-only util
+  run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"npm test | tail -60\"}}" | bash "$1"' -- "$HOOK"
   assert_output ''
 }
 
