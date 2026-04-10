@@ -5,6 +5,11 @@
 # Semicolons are intentionally excluded — they're ambiguous due to shell syntax
 # (for/do/done, if/then/fi, etc.).
 #
+# Pipe checks are ASYMMETRIC:
+#   - Source (left-most segment): safe read-only util OR safe npm command
+#   - Sinks (all subsequent segments): safe read-only utils only
+# This lets "npm test | tail -60" through while still blocking "npm test | bash".
+#
 # Known limitations:
 # - Quote stripping is naive (doesn't handle escaped quotes or nested quotes)
 # - Won't catch chaining inside $() or backtick subshells
@@ -21,6 +26,77 @@ stripped=$(printf '%s' "$command" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
 git_segment_safe() {
   local segment="$1"
   printf '%s' "$segment" | grep -qE '^git([[:space:]]+-\S+([[:space:]]+\S+)?)*[[:space:]]+(branch|diff|log|ls-files|rev-parse|show|status)([[:space:]]|$)'
+}
+
+# Check if an 'npm' segment is safe to use as a pipe SOURCE.
+#
+# Safe non-run subcommands: test, t, ls, list, audit, outdated, view, info
+# Safe run scripts: test, lint, check, typecheck, type-check, build, compile
+#   (plus colon-namespaced variants like test:unit, lint:ci)
+#
+# Handles --prefix <path> and other value-consuming flags before the subcommand.
+npm_segment_safe() {
+  local segment="$1"
+
+  # Must start with npm
+  [[ "$segment" =~ ^npm([[:space:]]|$) ]] || return 1
+
+  # Tokenize into a bash array (splits on whitespace)
+  local tokens
+  read -ra tokens <<< "$segment"
+
+  local i=1  # start after 'npm'
+  local subcommand="" script=""
+
+  # npm flags that consume the next token as their value
+  # (incomplete list — covers the common ones)
+  local token
+  while [ $i -lt ${#tokens[@]} ]; do
+    token="${tokens[$i]}"
+    case "$token" in
+      --prefix|--loglevel|--workspace|-w|--tag|--otp|--registry|--userconfig)
+        # Skip flag and its value argument
+        i=$((i + 2))
+        continue
+        ;;
+      -*)
+        # Boolean flag — skip
+        i=$((i + 1))
+        continue
+        ;;
+    esac
+    # First non-flag token is the subcommand
+    subcommand="$token"
+    i=$((i + 1))
+    break
+  done
+
+  # Safe subcommands that don't need further inspection
+  case "$subcommand" in
+    test|t|ls|list|audit|outdated|view|info)
+      return 0
+      ;;
+    run)
+      # Fall through to check the script name
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  # For 'run', find the script name (first non-flag token after 'run')
+  while [ $i -lt ${#tokens[@]} ]; do
+    token="${tokens[$i]}"
+    if [[ "$token" == -* ]]; then
+      i=$((i + 1))
+      continue
+    fi
+    script="$token"
+    break
+  done
+
+  # Safe script names, with optional colon namespace (e.g. test:unit, lint:ci)
+  [[ "$script" =~ ^(test|lint|check|typecheck|type-check|build|compile)(:[a-zA-Z0-9_-]+)?$ ]]
 }
 
 # Helper: check that every segment in a newline-separated list starts with a safe
@@ -79,10 +155,29 @@ fi
 # Also exclude redirections like 2>&1 which contain no standalone |
 no_double_pipe=$(printf '%s' "$stripped" | sed 's/||//g')
 if printf '%s' "$no_double_pipe" | grep -qF '|'; then
-  # Allow pipes only if EVERY segment (including the first) is a safe read-only command.
-  # This prevents piping output of destructive commands even into safe filters.
-  segments=$(printf '%s' "$no_double_pipe" | tr '|' '\n')
-  if ! all_segments_safe "$segments"; then
+  # Split into segments on |
+  all_pipe_segments=$(printf '%s' "$no_double_pipe" | tr '|' '\n')
+
+  # ASYMMETRIC check:
+  #   Source (first segment): may be a safe read-only util OR a safe npm command.
+  #   Sinks (remaining segments): must be safe read-only utils only.
+  # This allows "npm test | tail -60" while blocking "npm test | bash".
+  source_segment=$(printf '%s' "$all_pipe_segments" | head -n 1 | sed 's/^[[:space:]]*//')
+  sink_segments=$(printf '%s' "$all_pipe_segments" | tail -n +2)
+
+  source_ok=0
+  if all_segments_safe "$source_segment"; then
+    source_ok=1
+  elif npm_segment_safe "$source_segment"; then
+    source_ok=1
+  fi
+
+  sinks_ok=1
+  if ! all_segments_safe "$sink_segments"; then
+    sinks_ok=0
+  fi
+
+  if [ "$source_ok" -eq 0 ] || [ "$sinks_ok" -eq 0 ]; then
     block_with_hint "Pipe chaining (|) is not allowed." '|' "$command"
     exit 0
   fi
