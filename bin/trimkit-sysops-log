@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# trimkit-sysops-log — Append a sysops audit entry to the persistent JSONL log.
+#
+# Reads a JSON object from stdin, injects a "ts" field (current UTC timestamp),
+# and appends the entry as a single line to the audit log.
+#
+# The single printf write is atomic on Linux/macOS for payloads under PIPE_BUF
+# (~4KB), which comfortably covers the audit entry schema.
+#
+# Environment overrides (for testing):
+#   TRIMKIT_SYSOPS_LOG_DIR   override log directory   (default: ~/.claude/sysops)
+#   TRIMKIT_SYSOPS_LOG_FILE  override log file path   (default: $LOG_DIR/audit.jsonl)
+#
+# Usage:
+#   echo '{"session":"...","deployment":"Pulse",...}' | trimkit-sysops-log
+set -euo pipefail
+
+LOG_DIR="${TRIMKIT_SYSOPS_LOG_DIR:-${HOME}/.claude/sysops}"
+LOG_FILE="${TRIMKIT_SYSOPS_LOG_FILE:-${LOG_DIR}/audit.jsonl}"
+
+# Read JSON from stdin
+json="$(cat)"
+
+# Current UTC timestamp
+ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Inject ts via python3 (already required by install.sh)
+entry="$(python3 -c "
+import json, sys
+obj = json.loads(sys.argv[1])
+obj['ts'] = sys.argv[2]
+print(json.dumps(obj, separators=(',', ':')))
+" "$json" "$ts")"
+
+# Create log directory if needed
+mkdir -p "$LOG_DIR"
+
+# Append — atomic for single-line writes under PIPE_BUF
+printf '%s\n' "$entry" >> "$LOG_FILE"
