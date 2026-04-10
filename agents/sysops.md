@@ -21,12 +21,17 @@ This file contains all deployments with their SSH commands, app directories, and
 
 If the file is missing, tell the user to create it at `~/.claude/sysops/deployments.json` using the example at `https://github.com/josephfung/trimkit/blob/main/sysops/deployments.example.json`.
 
-Then generate a session identifier and capture the current project name — both are included in every audit log entry:
+Then generate a session identifier and capture the current project name — both are included in every audit log entry. Run each command separately and **note the output values** (you will substitute them as literal strings in all audit log calls below, because shell variables do not persist across separate Bash tool calls):
 
 ```bash
-SESSION=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
-PROJECT=$(basename "$PWD")
+python3 -c "import uuid; print(str(uuid.uuid4()))"
 ```
+Note the UUID output (e.g. `a1b2c3d4-e5f6-7890-abcd-ef1234567890`). This is your SESSION for this entire invocation.
+
+```bash
+basename "$PWD"
+```
+Note the output (e.g. `curia`). This is your PROJECT.
 
 ## Intent detection
 
@@ -110,7 +115,7 @@ Curia [prod] ✓
 
 After presenting the report for each deployment, write an audit log entry. Run these three commands in sequence (separate Bash calls — no pipes or chaining):
 
-**Call 1** — build the JSON entry (substitute actual collected values for the placeholders):
+**Call 1** — build the JSON entry. Substitute all placeholders with actual collected values, including the **literal** SESSION UUID and PROJECT name you captured above (not shell variables — they do not persist across Bash calls):
 ```bash
 python3 -c "
 import json, sys
@@ -125,8 +130,8 @@ print(json.dumps({
     'notes':                  sys.argv[7]
 }))
 " \
-  "$SESSION" \
-  "$PROJECT" \
+  "<literal SESSION UUID, e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890>" \
+  "<literal PROJECT name, e.g. curia>" \
   "<deployment name, e.g. Pulse>" \
   "<deployment env, e.g. prod>" \
   '<containers JSON object, e.g. {"pulse":"healthy","pulse-web":"healthy"}>' \
@@ -200,7 +205,7 @@ Notes: <any failures or issues>
 
 After completing maintenance on a deployment (success or failure), write an audit entry. Run these three commands in sequence:
 
-**Call 1** — build the JSON entry (substitute actual collected values; use `0` for `packages_upgraded` on failure, `"no"` for `reboot_performed` if skipped, `"null"` for `reboot_duration_s` if no reboot):
+**Call 1** — build the JSON entry. Substitute all placeholders with actual collected values, including the **literal** SESSION UUID and PROJECT name you captured above. Use `0` for `packages_upgraded` on failure, `"no"` for `reboot_performed` if skipped, `"null"` for `reboot_duration_s` if no reboot:
 ```bash
 python3 -c "
 import json, sys
@@ -219,8 +224,8 @@ entry = {
 }
 print(json.dumps(entry))
 " \
-  "$SESSION" \
-  "$PROJECT" \
+  "<literal SESSION UUID, e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890>" \
+  "<literal PROJECT name, e.g. curia>" \
   "<deployment name>" \
   "<deployment env>" \
   "<packages upgraded count, e.g. 11>" \
@@ -237,12 +242,12 @@ print(json.dumps(entry))
 if command -v trimkit-sysops-log > /dev/null 2>&1; then trimkit-sysops-log < /tmp/trimkit-sysops-entry.json; fi
 ```
 
-If the `if` branch does not execute (trimkit not installed), include `(audit log skipped — trimkit-sysops-log not on PATH)` in the maintenance report for that deployment.
-
 **Call 3** — clean up:
 ```bash
 rm -f /tmp/trimkit-sysops-entry.json
 ```
+
+If the `if` branch in Call 2 did not execute (trimkit not installed), include `(audit log skipped — trimkit-sysops-log not on PATH)` in the maintenance report for that deployment.
 
 ## Error handling
 
