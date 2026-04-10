@@ -371,15 +371,44 @@ if [ ${#hooks_failed[@]} -gt 0 ]; then
   for f in "${hooks_failed[@]}"; do echo "  ✗ $f"; done
 fi
 
-# Show bin PATH note when any bin script was freshly installed.
+# Offer to add ~/.trimkit/bin to PATH when any bin script was freshly installed.
 # Uses a count captured before the bin symlink_files call to scope detection
 # to bin/ only, avoiding false positives from hooks/agents with similar names.
 if [ "${#installed[@]}" -gt "$_installed_before_bin" ]; then
   if ! echo "$PATH" | grep -qF "$HOME/.trimkit/bin"; then
     echo ""
     echo "Note: ~/.trimkit/bin is not on your PATH."
-    echo "  Add this to your shell profile (~/.zshrc or ~/.bashrc):"
-    echo "    export PATH=\"\$HOME/.trimkit/bin:\$PATH\""
+
+    # Detect the most likely shell profile to modify.
+    if [ -f "$HOME/.zshrc" ]; then
+      _shell_profile="$HOME/.zshrc"
+    elif [ -f "$HOME/.bashrc" ]; then
+      _shell_profile="$HOME/.bashrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+      _shell_profile="$HOME/.bash_profile"
+    else
+      _shell_profile=""
+    fi
+
+    if [ -n "$_shell_profile" ]; then
+      # Ask the user interactively; default to yes on bare Enter.
+      printf "  Add it to %s now? [Y/n] " "$_shell_profile"
+      read -r _path_answer </dev/tty
+      case "${_path_answer:-Y}" in
+        [Yy]*)
+          printf '\nexport PATH="$HOME/.trimkit/bin:$PATH"\n' >> "$_shell_profile"
+          echo "  Added. Run 'source $_shell_profile' or open a new terminal to apply."
+          ;;
+        *)
+          echo "  Skipped. Add this manually when ready:"
+          echo "    export PATH=\"\$HOME/.trimkit/bin:\$PATH\""
+          ;;
+      esac
+    else
+      # No recognizable shell profile found — fall back to manual instructions.
+      echo "  Add this to your shell profile (~/.zshrc or ~/.bashrc):"
+      echo "    export PATH=\"\$HOME/.trimkit/bin:\$PATH\""
+    fi
   fi
 fi
 
