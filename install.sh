@@ -333,10 +333,10 @@ inject_claude_md() {
     fi
   fi
 
-  if grep -qF "$begin" "$dst"; then
+  if grep -qF "$begin" "$dst" 2>/dev/null; then
     # Block exists — replace the region between delimiters (inclusive) with
     # the new block using Python, preserving everything outside.
-    python3 - "$dst" "$begin" "$end" "$src" <<'PYEOF' || { claude_md_result="failed:python error updating ~/.claude/CLAUDE.md"; return; }
+    python3 - "$dst" "$begin" "$end" "$src" <<'PYEOF'
 import sys
 
 dst_path, begin, end, src_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
@@ -365,6 +365,11 @@ result = lines[:start_idx] + [block] + lines[end_idx + 1:]
 with open(dst_path, 'w') as f:
     f.writelines(result)
 PYEOF
+    # shellcheck disable=SC2181 — $? check needed: heredoc exit status can't use ||
+    if [ $? -ne 0 ]; then
+      claude_md_result="failed:python error updating ~/.claude/CLAUDE.md"
+      return
+    fi
     claude_md_result="updated"
   else
     # No block yet — append to end of file, with a blank line separator

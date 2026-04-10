@@ -97,8 +97,8 @@ teardown() {
   [ "$count" -eq 1 ]
 }
 
-@test "re-run preserves content outside the trimkit block" {
-  # Pre-populate CLAUDE.md with user content above and below
+@test "re-run preserves content above the trimkit block" {
+  # Pre-populate CLAUDE.md with user content above
   cat > "$FAKE_HOME/.claude/CLAUDE.md" <<'EOF'
 # My personal instructions
 
@@ -109,8 +109,33 @@ EOF
   run bash "$INSTALL"
   assert_success
 
-  # User content should still be present
   grep -qF 'Do not use semicolons.' "$FAKE_HOME/.claude/CLAUDE.md"
+}
+
+@test "re-run preserves content below the trimkit block" {
+  # Pre-install to get a block in place, then append user content after it
+  bash "$INSTALL"
+  printf '\n# My footer notes\n\nSome reminder.\n' >> "$FAKE_HOME/.claude/CLAUDE.md"
+
+  run bash "$INSTALL"
+  assert_success
+
+  grep -qF 'Some reminder.' "$FAKE_HOME/.claude/CLAUDE.md"
+}
+
+@test "re-run fails gracefully when block is malformed (BEGIN without END)" {
+  # Write a CLAUDE.md with a stray BEGIN but no END
+  cat > "$FAKE_HOME/.claude/CLAUDE.md" <<'EOF'
+# My notes
+
+<!-- BEGIN TRIMKIT -->
+Some orphaned content, no end marker.
+EOF
+
+  run bash "$INSTALL"
+  # Should fail with a non-zero exit and a useful error message
+  assert_failure
+  assert_output --partial 'CLAUDE.md'
 }
 
 @test "re-run updates block content when source file changes" {

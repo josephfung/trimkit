@@ -24,11 +24,17 @@ git -C /path/to/dir commit -m "message"
 Pipes are allowed when the source is a safe read-only command or a safe npm
 command, and every downstream segment is a safe read-only filter.
 
-Safe pipe sources: `git` (read-only subcommands), `npm test`, `npm run <safe-script>`,
-and standard read-only utils (`cat`, `grep`, `find`, `ls`, `sed`, `awk`, etc.).
+The full allowlist for pipe sources and sinks:
+`awk`, `basename`, `cat`, `cut`, `date`, `dirname`, `echo`, `egrep`, `fgrep`,
+`find`, `grep`, `head`, `jq`, `ls`, `printf`, `sed`, `sort`, `tail`, `tr`,
+`uniq`, `wc` — plus `git` (read-only subcommands: `branch`, `diff`, `log`,
+`ls-files`, `rev-parse`, `show`, `status`).
 
-Safe pipe sinks: `grep`, `head`, `tail`, `sed`, `awk`, `sort`, `uniq`, `wc`,
-`cut`, `tr`, `jq`, and other standard read-only filters.
+Additionally allowed as a pipe **source only**: `npm test`, `npm t`, `npm ls`,
+`npm list`, `npm audit`, `npm outdated`, `npm view`, `npm info`, and
+`npm run <script>` where the script name is `test`, `lint`, `check`,
+`typecheck`, `type-check`, `build`, or `compile` (colon-namespaced variants
+like `test:unit` also work). The `--prefix <path>` flag is supported.
 
 **Never use `xargs` in pipes** — it is not on the allowlist and will be blocked.
 Use the Grep tool or pass file lists explicitly instead.
