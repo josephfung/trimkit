@@ -112,7 +112,7 @@ all_segments_safe() {
       if ! git_segment_safe "$trimmed"; then
         return 1
       fi
-    elif ! printf '%s' "$trimmed" | grep -qE '^(awk|basename|cat|cut|date|dirname|echo|egrep|fgrep|grep|head|jq|ls|printf|sed|sort|tail|tr|uniq|wc)([[:space:]]|$)'; then
+    elif ! printf '%s' "$trimmed" | grep -qE '^(awk|basename|cat|cut|date|dirname|echo|egrep|fgrep|find|grep|head|jq|ls|printf|sed|sort|tail|tr|uniq|wc)([[:space:]]|$)'; then
       return 1
     fi
   done <<< "$segments"
