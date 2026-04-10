@@ -305,6 +305,79 @@ PYEOF
 merge_hooks
 
 # ---------------------------------------------------------------------------
+# CLAUDE.md injection
+# ---------------------------------------------------------------------------
+
+claude_md_result=""   # "injected", "updated", or "failed:<reason>"
+
+inject_claude_md() {
+  local src="$SCRIPT_DIR/settings/claude-md.md"
+  local dst="$HOME/.claude/CLAUDE.md"
+  local begin='<!-- BEGIN TRIMKIT -->'
+  local end='<!-- END TRIMKIT -->'
+
+  if [ ! -f "$src" ]; then
+    claude_md_result="failed:settings/claude-md.md not found"
+    return
+  fi
+
+  # Create CLAUDE.md if it doesn't exist yet
+  if [ ! -f "$dst" ]; then
+    mkdir -p "$(dirname "$dst")"
+    touch "$dst"
+  fi
+
+  # Build the replacement block
+  local block
+  block="$(printf '%s\n%s\n%s\n' "$begin" "$(cat "$src")" "$end")"
+
+  if grep -qF "$begin" "$dst"; then
+    # Block exists — replace the region between delimiters (inclusive) with
+    # the new block using Python, preserving everything outside.
+    python3 - "$dst" "$begin" "$end" "$src" <<'PYEOF'
+import sys
+
+dst_path, begin, end, src_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+
+with open(dst_path) as f:
+    lines = f.readlines()
+with open(src_path) as f:
+    new_content = f.read()
+
+# Find the begin/end line indices
+start_idx = end_idx = None
+for i, line in enumerate(lines):
+    if begin in line and start_idx is None:
+        start_idx = i
+    if end in line and start_idx is not None and end_idx is None:
+        end_idx = i
+
+if start_idx is None or end_idx is None:
+    sys.exit(1)
+
+block = begin + '\n' + new_content.rstrip('\n') + '\n' + end + '\n'
+result = lines[:start_idx] + [block] + lines[end_idx + 1:]
+
+with open(dst_path, 'w') as f:
+    f.writelines(result)
+PYEOF
+    claude_md_result="updated"
+  else
+    # No block yet — append to end of file, with a blank line separator
+    {
+      # Ensure file ends with a newline before appending
+      [ -s "$dst" ] && printf '\n'
+      printf '%s\n' "$begin"
+      cat "$src"
+      printf '%s\n' "$end"
+    } >> "$dst"
+    claude_md_result="injected"
+  fi
+}
+
+inject_claude_md
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
@@ -370,6 +443,12 @@ if [ ${#hooks_failed[@]} -gt 0 ]; then
   echo "Hook merge failures:"
   for f in "${hooks_failed[@]}"; do echo "  ✗ $f"; done
 fi
+
+case "$claude_md_result" in
+  injected) echo ""; echo "CLAUDE.md: injected TrimKit block into ~/.claude/CLAUDE.md" ;;
+  updated)  echo ""; echo "CLAUDE.md: updated TrimKit block in ~/.claude/CLAUDE.md" ;;
+  failed:*) echo "" >&2; echo "CLAUDE.md: error — ${claude_md_result#failed:}" >&2; exit 1 ;;
+esac
 
 # Offer to add ~/.trimkit/bin to PATH when any bin script was freshly installed.
 # Uses a count captured before the bin symlink_files call to scope detection
