@@ -21,6 +21,13 @@ This file contains all deployments with their SSH commands, app directories, and
 
 If the file is missing, tell the user to create it at `~/.claude/sysops/deployments.json` using the example at `https://github.com/josephfung/trimkit/blob/main/sysops/deployments.example.json`.
 
+Then generate a session identifier and capture the current project name — both are included in every audit log entry:
+
+```bash
+SESSION=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+PROJECT=$(basename "$PWD")
+```
+
 ## Intent detection
 
 Determine what the user wants based on how they invoked you:
@@ -99,6 +106,47 @@ Curia [prod] ✓
   Containers (unregistered): none
 ```
 
+### Audit log (status check)
+
+After presenting the report for each deployment, write an audit log entry. Run these three commands in sequence (separate Bash calls — no pipes or chaining):
+
+**Call 1** — build the JSON entry (substitute actual collected values for the placeholders):
+```bash
+python3 -c "
+import json, sys
+print(json.dumps({
+    'session':                sys.argv[1],
+    'project':                sys.argv[2],
+    'deployment':             sys.argv[3],
+    'env':                    sys.argv[4],
+    'action':                 'status_check',
+    'containers':             json.loads(sys.argv[5]),
+    'unregistered_containers': json.loads(sys.argv[6]),
+    'notes':                  sys.argv[7]
+}))
+" \
+  "$SESSION" \
+  "$PROJECT" \
+  "<deployment name, e.g. Pulse>" \
+  "<deployment env, e.g. prod>" \
+  '<containers JSON object, e.g. {"pulse":"healthy","pulse-web":"healthy"}>' \
+  '<unregistered containers JSON array, e.g. ["redis-temp"] or []>' \
+  "<notable findings or empty string>" \
+  > /tmp/trimkit-sysops-entry.json
+```
+
+**Call 2** — append to the audit log:
+```bash
+if command -v trimkit-sysops-log > /dev/null 2>&1; then trimkit-sysops-log < /tmp/trimkit-sysops-entry.json; fi
+```
+
+**Call 3** — clean up:
+```bash
+rm -f /tmp/trimkit-sysops-entry.json
+```
+
+If `trimkit-sysops-log` is not found (trimkit not installed), skip logging and note it in the report output: `(audit log skipped — trimkit-sysops-log not on PATH)`. Non-fatal; must not block the report.
+
 ## Maintenance
 
 Run in sequence for each targeted deployment. Do not proceed to the next deployment until the current one is fully complete (or has failed).
@@ -146,6 +194,54 @@ Packages upgraded: <count>
 Reboot performed: yes/no
 Containers after: <name: status> for each
 Notes: <any failures or issues>
+```
+
+### 6. Write audit log entry
+
+After completing maintenance on a deployment (success or failure), write an audit entry. Run these three commands in sequence:
+
+**Call 1** — build the JSON entry (substitute actual collected values; use `0` for `packages_upgraded` on failure, `"no"` for `reboot_performed` if skipped, `"null"` for `reboot_duration_s` if no reboot):
+```bash
+python3 -c "
+import json, sys
+entry = {
+    'session':                 sys.argv[1],
+    'project':                 sys.argv[2],
+    'deployment':              sys.argv[3],
+    'env':                     sys.argv[4],
+    'action':                  'maintenance',
+    'packages_upgraded':       int(sys.argv[5]),
+    'reboot_performed':        sys.argv[6] == 'yes',
+    'reboot_duration_s':       int(sys.argv[7]) if sys.argv[7] != 'null' else None,
+    'containers':              json.loads(sys.argv[8]),
+    'unregistered_containers': json.loads(sys.argv[9]),
+    'notes':                   sys.argv[10]
+}
+print(json.dumps(entry))
+" \
+  "$SESSION" \
+  "$PROJECT" \
+  "<deployment name>" \
+  "<deployment env>" \
+  "<packages upgraded count, e.g. 11>" \
+  "<yes or no>" \
+  "<reboot duration in seconds, or null>" \
+  '<containers JSON object, e.g. {"pulse":"healthy"}>' \
+  '<unregistered containers JSON array, e.g. []>' \
+  "<any failures or issues, or empty string>" \
+  > /tmp/trimkit-sysops-entry.json
+```
+
+**Call 2** — append to the audit log:
+```bash
+if command -v trimkit-sysops-log > /dev/null 2>&1; then trimkit-sysops-log < /tmp/trimkit-sysops-entry.json; fi
+```
+
+If the `if` branch does not execute (trimkit not installed), include `(audit log skipped — trimkit-sysops-log not on PATH)` in the maintenance report for that deployment.
+
+**Call 3** — clean up:
+```bash
+rm -f /tmp/trimkit-sysops-entry.json
 ```
 
 ## Error handling
