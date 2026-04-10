@@ -1,7 +1,8 @@
 #!/bin/bash
-# install.sh — Bootstrap TrimKit into ~/.claude
+# install.sh — Bootstrap TrimKit into ~/.claude and ~/.trimkit
 #   1. Symlinks hooks, agents, and skills into ~/.claude/
-#   2. Installs Claude Code plugins listed in plugins/plugins.txt
+#   2. Symlinks bin scripts into ~/.trimkit/bin/
+#   3. Installs Claude Code plugins listed in plugins/plugins.txt
 #
 # Usage: install.sh [--upgrade]
 #   --upgrade  Replace existing real files/dirs with symlinks (backs up first).
@@ -168,6 +169,9 @@ symlink_dirs() {
 symlink_files "$SCRIPT_DIR/hooks"   "$HOME/.claude/hooks"
 symlink_files "$SCRIPT_DIR/agents"  "$HOME/.claude/agents"
 symlink_dirs  "$SCRIPT_DIR/skills"  "$HOME/.claude/skills"
+
+# Track installed count before bin so we can detect fresh bin installs below.
+_installed_before_bin=${#installed[@]}
 symlink_files "$SCRIPT_DIR/bin"     "$HOME/.trimkit/bin"
 
 # ---------------------------------------------------------------------------
@@ -367,12 +371,10 @@ if [ ${#hooks_failed[@]} -gt 0 ]; then
   for f in "${hooks_failed[@]}"; do echo "  ✗ $f"; done
 fi
 
-# Show bin PATH note on first install of any bin script
-bin_just_installed=false
-for f in "${installed[@]+"${installed[@]}"}"; do
-  [[ "$f" == trimkit-* ]] && bin_just_installed=true && break
-done
-if [ "$bin_just_installed" = true ]; then
+# Show bin PATH note when any bin script was freshly installed.
+# Uses a count captured before the bin symlink_files call to scope detection
+# to bin/ only, avoiding false positives from hooks/agents with similar names.
+if [ "${#installed[@]}" -gt "$_installed_before_bin" ]; then
   if ! echo "$PATH" | grep -qF "$HOME/.trimkit/bin"; then
     echo ""
     echo "Note: ~/.trimkit/bin is not on your PATH."
