@@ -24,9 +24,9 @@ If the file is missing, tell the user to create it at `~/.claude/sysops/deployme
 Then generate a session identifier and capture the current project name — both are included in every audit log entry. Run each command separately and **note the output values** (you will substitute them as literal strings in all audit log calls below, because shell variables do not persist across separate Bash tool calls):
 
 ```bash
-python3 -c "import uuid; print(str(uuid.uuid4()))"
+python3 -c "import uuid; print(str(uuid.uuid4()))" 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || date -u +%Y%m%dT%H%M%SZ
 ```
-Note the UUID output (e.g. `a1b2c3d4-e5f6-7890-abcd-ef1234567890`). This is your SESSION for this entire invocation.
+Note the output (e.g. `a1b2c3d4-e5f6-7890-abcd-ef1234567890`). This is your SESSION for this entire invocation.
 
 ```bash
 basename "$PWD"
@@ -140,10 +140,11 @@ print(json.dumps({
   > /tmp/trimkit-sysops-entry.json
 ```
 
-**Call 2** — append to the audit log:
+**Call 2** — append to the audit log. Only run this if Call 1 exited successfully (Bash tool returned exit code 0). If Call 1 failed, skip to Call 3 and note `(audit log entry not written — JSON construction failed)` in the report.
 ```bash
 if command -v trimkit-sysops-log > /dev/null 2>&1; then trimkit-sysops-log < /tmp/trimkit-sysops-entry.json; fi
 ```
+If Call 2 returns a non-zero exit code, note `(audit log write failed)` in the report.
 
 **Call 3** — clean up:
 ```bash
@@ -237,17 +238,18 @@ print(json.dumps(entry))
   > /tmp/trimkit-sysops-entry.json
 ```
 
-**Call 2** — append to the audit log:
+**Call 2** — append to the audit log. Only run this if Call 1 exited successfully (Bash tool returned exit code 0). If Call 1 failed, skip to Call 3 and include `(audit log entry not written — JSON construction failed)` in the maintenance report for that deployment.
 ```bash
 if command -v trimkit-sysops-log > /dev/null 2>&1; then trimkit-sysops-log < /tmp/trimkit-sysops-entry.json; fi
 ```
+If Call 2 returns a non-zero exit code, include `(audit log write failed)` in the maintenance report for that deployment.
 
 **Call 3** — clean up:
 ```bash
 rm -f /tmp/trimkit-sysops-entry.json
 ```
 
-If the `if` branch in Call 2 did not execute (trimkit not installed), include `(audit log skipped — trimkit-sysops-log not on PATH)` in the maintenance report for that deployment.
+If `trimkit-sysops-log` is not found (trimkit not installed), include `(audit log skipped — trimkit-sysops-log not on PATH)` in the maintenance report for that deployment.
 
 ## Error handling
 

@@ -30,18 +30,27 @@ if not os.path.exists(log_file):
     sys.exit(0)
 
 entries = []
-with open(log_file) as f:
-    for line in f:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            obj = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if deployment_filter and obj.get('deployment', '').lower() != deployment_filter.lower():
-            continue
-        entries.append(obj)
+corrupt_count = 0
+try:
+    with open(log_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                corrupt_count += 1
+                continue
+            if deployment_filter and obj.get('deployment', '').lower() != deployment_filter.lower():
+                continue
+            entries.append(obj)
+except PermissionError:
+    print(f'Error: cannot read audit log at {log_file} (permission denied).')
+    sys.exit(1)
+except OSError as e:
+    print(f'Error: cannot read audit log: {e}')
+    sys.exit(1)
 
 entries = entries[-limit:]
 
@@ -50,6 +59,8 @@ if not entries:
     if deployment_filter:
         msg += f' for deployment {deployment_filter!r}'
     print(msg + '.')
+    if corrupt_count:
+        print(f'Warning: {corrupt_count} corrupt line(s) skipped in audit log.')
     sys.exit(0)
 
 for e in entries:
@@ -80,6 +91,9 @@ for e in entries:
     if notes:
         print(f'  Notes: {notes}')
     print()
+
+if corrupt_count:
+    print(f'Warning: {corrupt_count} corrupt line(s) skipped in audit log.')
 "
 ```
 
