@@ -22,12 +22,20 @@ echo "already installed"
 EOF
   chmod +x "$MOCK_BIN/claude"
 
+  # Make a private copy of the content source so tests can mutate it safely
+  # without touching the tracked file. Install reads from SCRIPT_DIR, so we
+  # point a temp copy at the same location via a separate variable used by
+  # the mutation test.
+  CONTENT_SRC_COPY="$(mktemp)"
+  cp "$CONTENT_SRC" "$CONTENT_SRC_COPY"
+
   export HOME="$FAKE_HOME"
   export PATH="$MOCK_BIN:$PATH"
 }
 
 teardown() {
   rm -rf "$FAKE_HOME" "$MOCK_BIN"
+  rm -f "$CONTENT_SRC_COPY"
 }
 
 # ---------------------------------------------------------------------------
@@ -53,13 +61,15 @@ teardown() {
 }
 
 @test "fresh install writes BEGIN/END delimiters" {
-  bash "$INSTALL"
+  run bash "$INSTALL"
+  assert_success
   grep -qF '<!-- BEGIN TRIMKIT -->' "$FAKE_HOME/.claude/CLAUDE.md"
   grep -qF '<!-- END TRIMKIT -->'   "$FAKE_HOME/.claude/CLAUDE.md"
 }
 
 @test "fresh install writes content from settings/claude-md.md inside the block" {
-  bash "$INSTALL"
+  run bash "$INSTALL"
+  assert_success
   # The block should contain at least the first non-empty line of the source file
   first_line=$(grep -v '^[[:space:]]*$' "$CONTENT_SRC" | head -n 1)
   grep -qF "$first_line" "$FAKE_HOME/.claude/CLAUDE.md"
@@ -67,6 +77,7 @@ teardown() {
 
 @test "fresh install reports CLAUDE.md injected in summary" {
   run bash "$INSTALL"
+  assert_success
   assert_output --partial 'CLAUDE.md'
 }
 
@@ -75,11 +86,11 @@ teardown() {
 # ---------------------------------------------------------------------------
 
 @test "re-run replaces existing trimkit block, not duplicates it" {
-  # First install
-  bash "$INSTALL"
+  run bash "$INSTALL"
+  assert_success
 
-  # Second install
-  bash "$INSTALL"
+  run bash "$INSTALL"
+  assert_success
 
   # Should still have exactly one BEGIN delimiter
   count=$(grep -cF '<!-- BEGIN TRIMKIT -->' "$FAKE_HOME/.claude/CLAUDE.md")
@@ -95,7 +106,8 @@ Do not use semicolons.
 
 EOF
 
-  bash "$INSTALL"
+  run bash "$INSTALL"
+  assert_success
 
   # User content should still be present
   grep -qF 'Do not use semicolons.' "$FAKE_HOME/.claude/CLAUDE.md"
@@ -103,23 +115,27 @@ EOF
 
 @test "re-run updates block content when source file changes" {
   # First install
-  bash "$INSTALL"
+  run bash "$INSTALL"
+  assert_success
 
-  # Simulate source file update by temporarily writing a unique marker
-  original=$(cat "$CONTENT_SRC")
-  printf '%s\n\nUNIQUE_UPDATE_MARKER_XYZ\n' "$original" > "$CONTENT_SRC"
+  # Mutate the tracked source by appending a unique marker.
+  # We write to the real file (since SCRIPT_DIR inside install.sh points there),
+  # but restore it unconditionally in teardown via CONTENT_SRC_COPY.
+  printf '\nUNIQUE_UPDATE_MARKER_XYZ\n' >> "$CONTENT_SRC"
 
-  bash "$INSTALL"
+  run bash "$INSTALL"
 
-  # Restore source
-  printf '%s\n' "$original" > "$CONTENT_SRC"
+  # Restore source immediately (teardown also does this as a safety net)
+  cp "$CONTENT_SRC_COPY" "$CONTENT_SRC"
 
+  assert_success
   grep -qF 'UNIQUE_UPDATE_MARKER_XYZ' "$FAKE_HOME/.claude/CLAUDE.md"
 }
 
 @test "re-run reports CLAUDE.md updated in summary" {
   bash "$INSTALL"
   run bash "$INSTALL"
+  assert_success
   assert_output --partial 'CLAUDE.md'
 }
 

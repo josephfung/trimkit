@@ -323,18 +323,20 @@ inject_claude_md() {
 
   # Create CLAUDE.md if it doesn't exist yet
   if [ ! -f "$dst" ]; then
-    mkdir -p "$(dirname "$dst")"
-    touch "$dst"
+    if ! mkdir -p "$(dirname "$dst")"; then
+      claude_md_result="failed:could not create directory $(dirname "$dst")"
+      return
+    fi
+    if ! touch "$dst"; then
+      claude_md_result="failed:could not create $dst"
+      return
+    fi
   fi
-
-  # Build the replacement block
-  local block
-  block="$(printf '%s\n%s\n%s\n' "$begin" "$(cat "$src")" "$end")"
 
   if grep -qF "$begin" "$dst"; then
     # Block exists — replace the region between delimiters (inclusive) with
     # the new block using Python, preserving everything outside.
-    python3 - "$dst" "$begin" "$end" "$src" <<'PYEOF'
+    python3 - "$dst" "$begin" "$end" "$src" <<'PYEOF' || { claude_md_result="failed:python error updating ~/.claude/CLAUDE.md"; return; }
 import sys
 
 dst_path, begin, end, src_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
@@ -353,6 +355,8 @@ for i, line in enumerate(lines):
         end_idx = i
 
 if start_idx is None or end_idx is None:
+    missing = "BEGIN" if start_idx is None else "END"
+    print(f"error: could not find {missing} delimiter in {dst_path}", file=sys.stderr)
     sys.exit(1)
 
 block = begin + '\n' + new_content.rstrip('\n') + '\n' + end + '\n'
@@ -370,7 +374,7 @@ PYEOF
       printf '%s\n' "$begin"
       cat "$src"
       printf '%s\n' "$end"
-    } >> "$dst"
+    } >> "$dst" || { claude_md_result="failed:could not write to $dst"; return; }
     claude_md_result="injected"
   fi
 }
