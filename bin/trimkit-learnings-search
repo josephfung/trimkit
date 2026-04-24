@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # trimkit-learnings-search — Query the sysops learnings store.
 #
-# Reads ~/.claude/sysops/learnings.jsonl, deduplicates entries by key (latest
-# entry per key wins), optionally filters by deployment, and outputs the
-# surviving entries as JSONL (one JSON object per line) to stdout.
+# Reads ~/.claude/sysops/learnings.jsonl, deduplicates entries by (deployment, key)
+# pair (latest entry per pair wins), optionally filters by deployment, and outputs
+# the surviving entries as JSONL (one JSON object per line) to stdout.
 #
 # Usage:
 #   trimkit-learnings-search                         # all learnings (deduplicated)
@@ -13,9 +13,8 @@
 #   --deployment <name>   Case-insensitive deployment filter (optional)
 #
 # Output:
-#   One JSON object per line (JSONL), latest-wins deduplicated.
-#   Exits 0 with no output if no matching entries exist.
-#   Exits 0 with an empty-file message on stderr if the store doesn't exist yet.
+#   One JSON object per line (JSONL), latest-wins deduplicated per (deployment, key) pair.
+#   Exits 0 with no output if no matching entries exist or if the store doesn't exist yet.
 #
 # Environment overrides (for testing):
 #   TRIMKIT_SYSOPS_LEARNINGS_DIR   override log directory   (default: ~/.claude/sysops)

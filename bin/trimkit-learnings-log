@@ -13,7 +13,8 @@
 #   source      string    how the learning was discovered (e.g. "observed", "inferred")
 #
 # Deduplication is handled at read time by trimkit-learnings-search: the latest
-# entry for a given key wins. This script never modifies existing entries.
+# entry for a given (deployment, key) pair wins. The same key on different
+# deployments is kept as independent entries. This script never modifies existing entries.
 #
 # The single printf write is atomic on Linux/macOS for payloads under PIPE_BUF
 # (~4KB), which comfortably covers the learnings entry schema.
