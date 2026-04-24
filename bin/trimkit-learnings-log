@@ -40,15 +40,22 @@ fi
 # Current UTC timestamp
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Inject ts and validate the key field — pipe json into python3 via stdin to
+# Inject ts and validate required fields — pipe json into python3 via stdin to
 # avoid shell-argument quoting issues and ARG_MAX limits with large payloads.
-# key is validated here because it is the dedup anchor: an empty key collapses
-# all keyless entries into a single bucket and corrupts dedup semantics.
+# Validated fields:
+#   key        — dedup anchor; an empty key corrupts the (deployment, key) dedup bucket
+#   deployment — scopes dedup; an empty value silently files the entry under no deployment
+#   type       — must be a known value to keep the store queryable and meaningful
 entry="$(printf '%s' "$json" | python3 -c "
 import json, sys
 obj = json.load(sys.stdin)
-if not obj.get('key'):
-    print('trimkit-learnings-log: error: \"key\" field is required and must be non-empty', file=sys.stderr)
+for field in ('deployment', 'key', 'type', 'insight'):
+    if not obj.get(field):
+        print(f'trimkit-learnings-log: error: \"{field}\" field is required and must be non-empty', file=sys.stderr)
+        sys.exit(1)
+valid_types = {'quirk', 'known-safe', 'procedure', 'warning'}
+if obj['type'] not in valid_types:
+    print(f'trimkit-learnings-log: error: \"type\" must be one of {sorted(valid_types)!r}, got {obj[\"type\"]!r}', file=sys.stderr)
     sys.exit(1)
 obj['ts'] = sys.argv[1]
 print(json.dumps(obj, separators=(',', ':')))
