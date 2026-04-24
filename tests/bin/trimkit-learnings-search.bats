@@ -116,6 +116,27 @@ for line in sys.stdin:
   assert_output --partial "error:"
 }
 
+@test "exits 1 with error when --deployment is given an empty string" {
+  run bash "$SCRIPT" --deployment ""
+  assert_failure
+  assert_output --partial "error:"
+}
+
+@test "corrupt JSONL lines are skipped and valid entries still appear" {
+  printf 'this is not json\n' >> "$TRIMKIT_SYSOPS_LEARNINGS_FILE"
+  write_entry "$ENTRY_PULSE_A"
+  run bash "$SCRIPT"
+  assert_success
+  assert_output --partial "caddy-restart"
+}
+
+@test "corrupt JSONL lines emit a warning on stderr" {
+  printf 'not json\n' >> "$TRIMKIT_SYSOPS_LEARNINGS_FILE"
+  run bash "$SCRIPT" 2>&1
+  assert_success
+  assert_output --partial "warning"
+}
+
 @test "same key on different deployments are not deduplicated against each other" {
   # Both Pulse and Curia have key "shared-key"; both should survive
   pulse='{"ts":"2026-04-10T10:00:00Z","deployment":"Pulse","key":"shared-key","type":"quirk","insight":"Pulse insight.","confidence":0.9,"source":"observed"}'

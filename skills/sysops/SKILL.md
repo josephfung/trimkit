@@ -141,10 +141,10 @@ try:
                 order.append(dedup_key)
             seen[dedup_key] = obj
 except PermissionError:
-    print(f'Error: cannot read learnings at {learnings_file} (permission denied).')
+    print(f'Error: cannot read learnings at {learnings_file} (permission denied).', file=sys.stderr)
     sys.exit(1)
 except OSError as e:
-    print(f'Error: cannot read learnings: {e}')
+    print(f'Error: cannot read learnings: {e}', file=sys.stderr)
     sys.exit(1)
 
 # Filter and collect surviving entries in first-seen order.

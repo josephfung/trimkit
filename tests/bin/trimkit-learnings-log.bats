@@ -88,6 +88,12 @@ assert obj['source'] == 'observed'
   assert_success
 }
 
+@test "exits 1 with error message when insight field is missing" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"my-key\",\"type\":\"quirk\",\"confidence\":0.9,\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+}
+
 @test "exits 1 with error message when key field is missing" {
   run bash -c "echo '{\"deployment\":\"Pulse\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":0.9,\"source\":\"observed\"}' | bash '$SCRIPT'"
   assert_failure

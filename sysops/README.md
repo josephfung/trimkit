@@ -108,7 +108,7 @@ Environment overrides for testing:
 
 ## trimkit-learnings-search
 
-`bin/trimkit-learnings-search` reads the learnings store, deduplicates by `key` (latest entry wins), optionally filters by deployment, and outputs surviving entries as JSONL to stdout.
+`bin/trimkit-learnings-search` reads the learnings store, deduplicates by `(deployment, key)` pair (latest entry per pair wins), optionally filters by deployment, and outputs surviving entries as JSONL to stdout.
 
 ```bash
 trimkit-learnings-search                      # all learnings
