@@ -30,8 +30,14 @@ deployment_filter=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --deployment)
+      # Require a non-empty value following the flag
+      if [ $# -lt 2 ] || [ -z "${2:-}" ]; then
+        echo "trimkit-learnings-search: error: --deployment requires an argument" >&2
+        echo "Usage: trimkit-learnings-search [--deployment <name>]" >&2
+        exit 1
+      fi
       shift
-      deployment_filter="${1:-}"
+      deployment_filter="$1"
       ;;
     *)
       echo "trimkit-learnings-search: error: unknown argument '$1'" >&2
@@ -47,17 +53,19 @@ if [ ! -f "$LEARNINGS_FILE" ]; then
   exit 0
 fi
 
-# Read, deduplicate by key (latest entry wins), filter by deployment, output JSONL.
-# Dedup strategy: scan all lines in order; for each key, keep overwriting with
-# the latest seen entry. At the end, emit surviving entries in their last-seen order.
+# Read, deduplicate by (deployment, key) pair (latest entry wins), filter by
+# deployment, and output surviving entries as JSONL.
+# Dedup strategy: scan all lines in order; for each (deployment, key) pair, keep
+# overwriting with the latest seen entry. Scoping dedup to deployment prevents a
+# key written for one deployment from suppressing the same key on another.
 python3 -c "
 import json, os, sys
 
 learnings_file = sys.argv[1]
 deployment_filter = sys.argv[2]  # empty string means no filter
 
-seen_keys = {}   # key -> (last_seen_index, entry)
-order = []       # insertion-order list of keys as first seen
+seen = {}    # (deployment, key) -> entry; latest entry per pair wins
+order = []   # insertion-order list of (deployment, key) pairs, first-seen only
 
 corrupt_count = 0
 try:
@@ -71,10 +79,10 @@ try:
             except json.JSONDecodeError:
                 corrupt_count += 1
                 continue
-            key = obj.get('key', '')
-            if key not in seen_keys:
-                order.append(key)
-            seen_keys[key] = obj
+            dedup_key = (obj.get('deployment', ''), obj.get('key', ''))
+            if dedup_key not in seen:
+                order.append(dedup_key)
+            seen[dedup_key] = obj
 except PermissionError:
     print(f'trimkit-learnings-search: error: cannot read {learnings_file} (permission denied)', file=sys.stderr)
     sys.exit(1)
@@ -85,8 +93,8 @@ except OSError as e:
 if corrupt_count:
     print(f'trimkit-learnings-search: warning: {corrupt_count} corrupt line(s) skipped', file=sys.stderr)
 
-for key in order:
-    entry = seen_keys[key]
+for dedup_key in order:
+    entry = seen[dedup_key]
     if deployment_filter and entry.get('deployment', '').lower() != deployment_filter.lower():
         continue
     print(json.dumps(entry, separators=(',', ':')))

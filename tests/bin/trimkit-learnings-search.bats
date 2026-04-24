@@ -110,6 +110,35 @@ for line in sys.stdin:
   assert_output --partial "error: unknown argument"
 }
 
+@test "exits 1 with error when --deployment is given without a value" {
+  run bash "$SCRIPT" --deployment
+  assert_failure
+  assert_output --partial "error:"
+}
+
+@test "same key on different deployments are not deduplicated against each other" {
+  # Both Pulse and Curia have key "shared-key"; both should survive
+  pulse='{"ts":"2026-04-10T10:00:00Z","deployment":"Pulse","key":"shared-key","type":"quirk","insight":"Pulse insight.","confidence":0.9,"source":"observed"}'
+  curia='{"ts":"2026-04-10T11:00:00Z","deployment":"Curia","key":"shared-key","type":"quirk","insight":"Curia insight.","confidence":0.8,"source":"observed"}'
+  write_entry "$pulse"
+  write_entry "$curia"
+  run bash "$SCRIPT"
+  assert_success
+  line_count="$(echo "$output" | grep -c .)"
+  assert_equal "$line_count" "2"
+}
+
+@test "deployment filter with shared key only returns matching deployment" {
+  pulse='{"ts":"2026-04-10T10:00:00Z","deployment":"Pulse","key":"shared-key","type":"quirk","insight":"Pulse insight.","confidence":0.9,"source":"observed"}'
+  curia='{"ts":"2026-04-10T11:00:00Z","deployment":"Curia","key":"shared-key","type":"quirk","insight":"Curia insight.","confidence":0.8,"source":"observed"}'
+  write_entry "$pulse"
+  write_entry "$curia"
+  run bash "$SCRIPT" --deployment Pulse
+  assert_success
+  assert_output --partial "Pulse insight."
+  refute_output --partial "Curia insight."
+}
+
 @test "exits 0 on empty learnings file" {
   touch "$TRIMKIT_SYSOPS_LEARNINGS_FILE"
   run bash "$SCRIPT"

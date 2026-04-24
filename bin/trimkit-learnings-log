@@ -40,11 +40,16 @@ fi
 # Current UTC timestamp
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Inject ts — pipe json into python3 via stdin to avoid shell-argument quoting
-# issues and ARG_MAX limits with large payloads.
+# Inject ts and validate the key field — pipe json into python3 via stdin to
+# avoid shell-argument quoting issues and ARG_MAX limits with large payloads.
+# key is validated here because it is the dedup anchor: an empty key collapses
+# all keyless entries into a single bucket and corrupts dedup semantics.
 entry="$(printf '%s' "$json" | python3 -c "
 import json, sys
 obj = json.load(sys.stdin)
+if not obj.get('key'):
+    print('trimkit-learnings-log: error: \"key\" field is required and must be non-empty', file=sys.stderr)
+    sys.exit(1)
 obj['ts'] = sys.argv[1]
 print(json.dumps(obj, separators=(',', ':')))
 " "$ts")"
