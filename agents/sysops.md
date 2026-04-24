@@ -56,7 +56,9 @@ Before running checks on each deployment, query its stored learnings. Use the li
 if command -v trimkit-learnings-search > /dev/null 2>&1; then trimkit-learnings-search --deployment "<deployment_name>"; fi
 ```
 
-If any learnings are returned, surface them briefly before the status report under a **Known quirks** heading, so they inform your interpretation of results. If `trimkit-learnings-search` is not on PATH, skip silently.
+If any learnings are returned, surface them briefly before the status report under a **Known quirks** heading, so they inform your interpretation of results. If the command produces output on stderr, include it as a warning under that heading.
+
+If `trimkit-learnings-search` is not on PATH, skip silently. If it is found but exits non-zero, note `(learnings unavailable — error loading store)` before the status report and continue; do not treat this as fatal.
 
 ### Checks
 
@@ -178,7 +180,7 @@ Triggers that warrant a learning:
 
 Use a stable kebab-case `key` that describes the observation (e.g. `redis-cache-known-safe`, `high-mem-expected-on-pulse`).
 
-**Call 1** — build the JSON entry. Substitute all placeholders with actual values:
+**Call 1** — build the JSON entry. Substitute all placeholders with actual values, including the **literal** SESSION UUID you captured above (not a shell variable — it does not persist across Bash calls). The session UUID in the temp file path prevents collision with concurrent agent invocations:
 ```bash
 python3 -c "
 import json, sys
@@ -196,18 +198,19 @@ print(json.dumps({
   "<type: quirk|known-safe|procedure|warning>" \
   "<human-readable insight describing what was learned>" \
   "<confidence 0.0–1.0, e.g. 0.9>" \
-  > /tmp/trimkit-sysops-learning.json
+  > /tmp/trimkit-sysops-learning-<literal SESSION UUID, e.g. a1b2c3d4-e5f6-7890-abcd-ef1234567890>.json
 ```
 
-**Call 2** — append to the learnings store. Only run if Call 1 exited successfully:
+**Call 2** — append to the learnings store. Only run if Call 1 exited successfully. Substitute the same literal SESSION UUID in the temp file path:
 ```bash
-if command -v trimkit-learnings-log > /dev/null 2>&1; then trimkit-learnings-log < /tmp/trimkit-sysops-learning.json; fi
+if command -v trimkit-learnings-log > /dev/null 2>&1; then trimkit-learnings-log < /tmp/trimkit-sysops-learning-<literal SESSION UUID>.json; fi
 ```
-If `trimkit-learnings-log` is not on PATH, skip silently.
+- If `trimkit-learnings-log` is not on PATH, skip silently and omit the `(learning recorded: <key>)` note from the report.
+- If `trimkit-learnings-log` is found but returns a non-zero exit code, note `(learning write failed: <key>)` in the report instead of `(learning recorded: <key>)`.
 
-**Call 3** — clean up:
+**Call 3** — clean up. Substitute the same literal SESSION UUID:
 ```bash
-rm -f /tmp/trimkit-sysops-learning.json
+rm -f /tmp/trimkit-sysops-learning-<literal SESSION UUID>.json
 ```
 
 ## Maintenance
@@ -222,7 +225,9 @@ Before running maintenance on each deployment, query its stored learnings. Use t
 if command -v trimkit-learnings-search > /dev/null 2>&1; then trimkit-learnings-search --deployment "<deployment_name>"; fi
 ```
 
-If any learnings are returned, surface them under a **Known quirks** heading before beginning work — they may describe procedures or quirks that affect how you should run maintenance. If `trimkit-learnings-search` is not on PATH, skip silently.
+If any learnings are returned, surface them under a **Known quirks** heading before beginning work — they may describe procedures or quirks that affect how you should run maintenance. If the command produces output on stderr, include it as a warning under that heading.
+
+If `trimkit-learnings-search` is not on PATH, skip silently. If it is found but exits non-zero, note `(learnings unavailable — error loading store)` before the maintenance output and continue; do not treat this as fatal.
 
 ### 1. Apply updates
 
@@ -280,7 +285,7 @@ Triggers that warrant a learning during maintenance:
 - User confirmed an unregistered container as known-safe (A) → `type: "known-safe"`, `confidence: 1.0`
 - Any other server-specific quirk that will save time in a future session → `type: "quirk"`, `confidence: 0.7–0.9`
 
-Use the same 3-call write pattern as in the status check's learnings section (same JSON schema, same `trimkit-learnings-log` invocation, same `/tmp/trimkit-sysops-learning.json` temp file, same cleanup).
+Use the same 3-call write pattern as in the status check's learnings section: same JSON schema, same `trimkit-learnings-log` invocation, same session-scoped temp file path (`/tmp/trimkit-sysops-learning-<literal SESSION UUID>.json`), same cleanup, and same Call 2 failure handling (`(learning write failed: <key>)` on non-zero exit, omit note if tool not on PATH).
 
 ### 7. Write audit log entry
 

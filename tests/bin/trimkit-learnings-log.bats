@@ -100,6 +100,25 @@ assert obj['source'] == 'observed'
   assert_output --partial "error:"
 }
 
+@test "exits 1 with error message when deployment field is missing" {
+  run bash -c "echo '{\"key\":\"my-key\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":0.9,\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+}
+
+@test "exits 1 with error message when type is not a valid value" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"my-key\",\"type\":\"unknown\",\"insight\":\"x\",\"confidence\":0.9,\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+}
+
+@test "accepts all four valid type values" {
+  for t in quirk known-safe procedure warning; do
+    run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"k\",\"type\":\"$t\",\"insight\":\"x\",\"confidence\":0.9,\"source\":\"observed\"}' | bash '$SCRIPT'"
+    assert_success
+  done
+}
+
 @test "concurrent writes all produce valid JSONL lines" {
   for i in 1 2 3 4 5; do
     echo "{\"deployment\":\"Pulse\",\"key\":\"key-${i}\",\"type\":\"quirk\",\"insight\":\"learning ${i}\",\"confidence\":0.8,\"source\":\"observed\"}" \
