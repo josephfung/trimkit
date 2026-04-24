@@ -88,6 +88,18 @@ assert obj['source'] == 'observed'
   assert_success
 }
 
+@test "exits 1 with error message when key field is missing" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":0.9,\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+}
+
+@test "exits 1 with error message when key field is empty string" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":0.9,\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+}
+
 @test "concurrent writes all produce valid JSONL lines" {
   for i in 1 2 3 4 5; do
     echo "{\"deployment\":\"Pulse\",\"key\":\"key-${i}\",\"type\":\"quirk\",\"insight\":\"learning ${i}\",\"confidence\":0.8,\"source\":\"observed\"}" \

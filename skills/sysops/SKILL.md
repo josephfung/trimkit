@@ -119,9 +119,11 @@ if not os.path.exists(learnings_file):
     print('Learnings are written by the sysops agent when it discovers server quirks.')
     sys.exit(0)
 
-# Read all entries and deduplicate by key — latest entry per key wins.
-seen_keys = {}
-order = []
+# Read all entries and deduplicate by (deployment, key) pair — latest entry per
+# pair wins. Scoping dedup to deployment prevents a key on one server from
+# suppressing the same key on another.
+seen = {}   # (deployment, key) -> entry
+order = []  # first-seen (deployment, key) pairs in insertion order
 corrupt_count = 0
 try:
     with open(learnings_file) as f:
@@ -134,10 +136,10 @@ try:
             except json.JSONDecodeError:
                 corrupt_count += 1
                 continue
-            key = obj.get('key', '')
-            if key not in seen_keys:
-                order.append(key)
-            seen_keys[key] = obj
+            dedup_key = (obj.get('deployment', ''), obj.get('key', ''))
+            if dedup_key not in seen:
+                order.append(dedup_key)
+            seen[dedup_key] = obj
 except PermissionError:
     print(f'Error: cannot read learnings at {learnings_file} (permission denied).')
     sys.exit(1)
@@ -147,8 +149,8 @@ except OSError as e:
 
 # Filter and collect surviving entries in first-seen order.
 entries = []
-for key in order:
-    entry = seen_keys[key]
+for dedup_key in order:
+    entry = seen[dedup_key]
     if deployment_filter and entry.get('deployment', '').lower() != deployment_filter.lower():
         continue
     entries.append(entry)
