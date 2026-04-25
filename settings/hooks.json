@@ -1,6 +1,18 @@
 {
   "_comment": "Merge this into your ~/.claude/settings.json under hooks",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.trimkit/bin/trimkit-update-check",
+            "statusMessage": "Checking for trimkit updates..."
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",

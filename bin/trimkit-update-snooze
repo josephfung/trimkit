@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# trimkit-update-snooze — Snooze trimkit update notifications for a version.
+#
+# Usage: trimkit-update-snooze <version>
+#
+# Writes snoozed-version and snoozed-until into the update-check state dir.
+# trimkit-update-check calls this automatically after showing a notice, but
+# it can also be run manually to snooze a specific version.
+#
+# Environment overrides (for testing):
+#   TRIMKIT_UPDATE_STATE_DIR    state directory (default: ~/.trimkit/update-check)
+#   TRIMKIT_UPDATE_SNOOZE_DAYS  snooze duration in days (default: 7)
+set -euo pipefail
+
+STATE_DIR="${TRIMKIT_UPDATE_STATE_DIR:-${HOME}/.trimkit/update-check}"
+SNOOZE_DAYS="${TRIMKIT_UPDATE_SNOOZE_DAYS:-7}"
+
+if [ $# -lt 1 ]; then
+  echo "trimkit-update-snooze: error: missing version argument" >&2
+  echo "Usage: trimkit-update-snooze <version>" >&2
+  exit 1
+fi
+
+version="$1"
+
+mkdir -p "$STATE_DIR" || {
+  echo "trimkit-update-snooze: error: cannot create state directory '$STATE_DIR'" >&2
+  exit 1
+}
+
+snooze_until="$(python3 -c "
+from datetime import datetime, timezone, timedelta
+import sys
+until = datetime.now(timezone.utc) + timedelta(days=int(sys.argv[1]))
+print(until.strftime('%Y-%m-%dT%H:%M:%SZ'))
+" "$SNOOZE_DAYS")"
+
+printf '%s\n' "$version" > "$STATE_DIR/snoozed-version.tmp" \
+  && mv "$STATE_DIR/snoozed-version.tmp" "$STATE_DIR/snoozed-version" || {
+  echo "trimkit-update-snooze: error: cannot write snoozed-version" >&2
+  exit 1
+}
+
+printf '%s\n' "$snooze_until" > "$STATE_DIR/snoozed-until.tmp" \
+  && mv "$STATE_DIR/snoozed-until.tmp" "$STATE_DIR/snoozed-until" || {
+  echo "trimkit-update-snooze: error: cannot write snoozed-until" >&2
+  exit 1
+}

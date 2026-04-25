@@ -175,6 +175,17 @@ _installed_before_bin=${#installed[@]}
 symlink_files "$SCRIPT_DIR/bin"     "$HOME/.trimkit/bin"
 
 # ---------------------------------------------------------------------------
+# Install directory record (used by trimkit-update-check to find package.json)
+# ---------------------------------------------------------------------------
+
+# Write the absolute path of this trimkit clone to ~/.trimkit/install-dir so
+# trimkit-update-check can locate the local package.json without resolving
+# symlinks (which is not portable across macOS and Linux).
+printf '%s\n' "$SCRIPT_DIR" > "$HOME/.trimkit/install-dir.tmp" \
+  && mv "$HOME/.trimkit/install-dir.tmp" "$HOME/.trimkit/install-dir" \
+  || echo "Warning: could not write ~/.trimkit/install-dir — update checks will be skipped" >&2
+
+# ---------------------------------------------------------------------------
 # Plugins
 # ---------------------------------------------------------------------------
 
