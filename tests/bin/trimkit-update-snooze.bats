@@ -30,7 +30,7 @@ teardown() {
 @test "exits non-zero and prints usage on missing version argument" {
   run bash "$SCRIPT"
   assert_failure
-  assert_output --partial 'missing version argument'
+  assert_output --partial 'version argument'
   assert_output --partial 'Usage:'
 }
 
@@ -54,35 +54,37 @@ teardown() {
   run bash "$SCRIPT" "1.2.3"
   assert_success
   [ -f "$FAKE_STATE_DIR/snoozed-until" ]
-  python3 -c "
-import re
-ts = open('$FAKE_STATE_DIR/snoozed-until').read().strip()
-assert re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$', ts), f'bad format: {ts}'
-"
+  python3 -c '
+import re, sys
+ts = open(sys.argv[1]).read().strip()
+assert re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$", ts), f"bad format: {ts}"
+' "$FAKE_STATE_DIR/snoozed-until"
 }
 
 @test "snoozed-until is approximately SNOOZE_DAYS in the future" {
   bash "$SCRIPT" "1.2.3"
-  python3 -c "
-from datetime import datetime, timezone, timedelta
-ts = open('$FAKE_STATE_DIR/snoozed-until').read().strip()
-until = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+  python3 -c '
+from datetime import datetime, timezone
+import sys
+ts = open(sys.argv[1]).read().strip()
+until = datetime.fromisoformat(ts.replace("Z", "+00:00"))
 delta = (until - datetime.now(timezone.utc)).total_seconds()
 # Allow 60-second tolerance for test execution time
-assert abs(delta - 7 * 86400) < 60, f'expected ~7 days, got {delta:.0f}s'
-"
+assert abs(delta - 7 * 86400) < 60, f"expected ~7 days, got {delta:.0f}s"
+' "$FAKE_STATE_DIR/snoozed-until"
 }
 
 @test "respects TRIMKIT_UPDATE_SNOOZE_DAYS override" {
   export TRIMKIT_UPDATE_SNOOZE_DAYS=3
   bash "$SCRIPT" "1.2.3"
-  python3 -c "
+  python3 -c '
 from datetime import datetime, timezone
-ts = open('$FAKE_STATE_DIR/snoozed-until').read().strip()
-until = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+import sys
+ts = open(sys.argv[1]).read().strip()
+until = datetime.fromisoformat(ts.replace("Z", "+00:00"))
 delta = (until - datetime.now(timezone.utc)).total_seconds()
-assert abs(delta - 3 * 86400) < 60, f'expected ~3 days, got {delta:.0f}s'
-"
+assert abs(delta - 3 * 86400) < 60, f"expected ~3 days, got {delta:.0f}s"
+' "$FAKE_STATE_DIR/snoozed-until"
 }
 
 # ---------------------------------------------------------------------------

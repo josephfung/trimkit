@@ -102,18 +102,21 @@ print(json.load(sys.stdin)['version'])
   latest_version="$(cat "$STATE_DIR/latest-version" 2>/dev/null)"
   [ -n "$latest_version" ] || return 0
 
-  # Compare versions using tuple comparison — is latest strictly newer than local?
-  # int() is guarded with try/except to handle pre-release labels (e.g. 1.0.0-rc.1).
+  # Compare versions — is latest strictly newer than local?
+  # Uses a 4-tuple (major, minor, patch, is_release) so pre-release versions
+  # (e.g. 1.0.0-rc.1) sort below their corresponding release (1.0.0), meaning
+  # a user on 1.0.0-rc.1 will be notified when 1.0.0 ships.
   is_newer="$(python3 -c "
-import sys
+import sys, re
 def parse(v):
-    parts = []
-    for x in v.strip().split('.')[:3]:
-        try:
-            parts.append(int(x))
-        except ValueError:
-            parts.append(0)
-    return tuple(parts)
+    m = re.match(r'^(\d+)(?:\.(\d+))?(?:\.(\d+))?([-+].*)?', v.strip())
+    if not m:
+        return (0, 0, 0, 1)
+    major = int(m.group(1) or 0)
+    minor = int(m.group(2) or 0)
+    patch = int(m.group(3) or 0)
+    pre = 0 if m.group(4) else 1  # pre-release sorts below release
+    return (major, minor, patch, pre)
 print('1' if parse(sys.argv[2]) > parse(sys.argv[1]) else '0')
 " "$local_version" "$latest_version" 2>/dev/null)" || return 0
   [ "$is_newer" = "1" ] || return 0
@@ -132,8 +135,9 @@ sys.exit(0 if datetime.now(timezone.utc) < until else 1)
     fi
   fi
 
-  # Print the one-line update notice using the actual install path
-  printf 'trimkit v%s is available (you have v%s). Run: cd %s; git pull; ./install.sh\n' \
+  # Print the one-line update notice. %q shell-quotes the install path so the
+  # generated command is copy-pasteable even when the path contains spaces.
+  printf 'trimkit v%s is available (you have v%s). Run: cd %q; git pull; ./install.sh\n' \
     "$latest_version" "$local_version" "$install_dir"
 
   # Auto-snooze via the dedicated script to avoid repeating on every subsequent

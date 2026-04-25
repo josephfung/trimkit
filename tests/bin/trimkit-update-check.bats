@@ -25,17 +25,22 @@ setup() {
   # Call-count file — starts empty; mock curl appends one line per call
   touch "$MOCK_CURL_CALLS"
 
-  # Mock curl — outputs $MOCK_CURL_RESPONSE, records each call, honours $MOCK_CURL_EXIT
+  # Mock curl — outputs $MOCK_CURL_RESPONSE, records successful calls, honours $MOCK_CURL_EXIT.
+  # The call counter is incremented only on non-error exits so that tests asserting
+  # "no curl call" aren't confused by failure-path invocations.
   cat > "$MOCK_BIN/curl" <<'MOCKCURL'
 #!/bin/bash
-printf '1\n' >> "${MOCK_CURL_CALLS}"
 if [ "${MOCK_CURL_EXIT:-0}" != "0" ]; then
   exit "${MOCK_CURL_EXIT}"
 fi
+printf '1\n' >> "${MOCK_CURL_CALLS}"
 cat "${MOCK_CURL_RESPONSE}"
 MOCKCURL
   chmod +x "$MOCK_BIN/curl"
 
+  # Override HOME so that any $HOME-based fallback paths in the script resolve
+  # into the sandbox rather than the real user's ~/.trimkit directory.
+  export HOME="$FAKE_HOME"
   export PATH="$MOCK_BIN:$PATH"
   export TRIMKIT_UPDATE_STATE_DIR="$FAKE_STATE_DIR"
   export TRIMKIT_UPDATE_INSTALL_DIR="$FAKE_INSTALL_DIR"
@@ -218,8 +223,9 @@ print(until.strftime('%Y-%m-%dT%H:%M:%SZ'))
 @test "second run is silent after auto-snooze is written" {
   printf '{"name":"trimkit","version":"1.0.0"}\n' > "$MOCK_REMOTE_JSON"
 
-  # First run: notice shown, snooze written
-  bash "$SCRIPT"
+  # First run: notice shown, snooze written (output captured to keep harness clean)
+  run bash "$SCRIPT"
+  assert_success
 
   # Second run: snoozed — must be silent
   run bash "$SCRIPT"
