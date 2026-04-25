@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# trimkit-update-check — Check for available trimkit updates.
+#
+# Runs at most once per 24 hours (TTL-cached). Fetches the latest version
+# from GitHub and compares against the locally installed version. Prints a
+# one-line notice if an update is available; silent otherwise.
+#
+# Called as a UserPromptSubmit hook on every Claude Code prompt submission.
+# Always exits 0 — failure must never block Claude Code.
+#
+# State files (all under STATE_DIR):
+#   last-checked      ISO 8601 timestamp of last remote fetch
+#   latest-version    cached version string from GitHub
+#   snoozed-version   version string that is currently snoozed
+#   snoozed-until     ISO 8601 timestamp when snooze expires
+#
+# Environment overrides (for testing):
+#   TRIMKIT_UPDATE_STATE_DIR    state directory (default: ~/.trimkit/update-check)
+#   TRIMKIT_UPDATE_INSTALL_DIR  trimkit install dir (default: read from ~/.trimkit/install-dir)
+#   TRIMKIT_UPDATE_REMOTE_URL   remote package.json URL
+#   TRIMKIT_UPDATE_TTL          fetch TTL in seconds (default: 86400)
+set -euo pipefail
+
+STATE_DIR="${TRIMKIT_UPDATE_STATE_DIR:-${HOME}/.trimkit/update-check}"
+REMOTE_URL="${TRIMKIT_UPDATE_REMOTE_URL:-https://raw.githubusercontent.com/josephfung/trimkit/main/package.json}"
+TTL="${TRIMKIT_UPDATE_TTL:-86400}"
+
+# All logic is wrapped in run_check so we can safely 'return' on any error
+# without affecting the outer exit 0.
+run_check() {
+  local install_dir pkg_json local_version
+  local ttl_expired last_checked now remote_json latest_version
+  local is_newer snoozed_version snoozed_until
+
+  # Resolve the trimkit install directory
+  if [ -n "${TRIMKIT_UPDATE_INSTALL_DIR:-}" ]; then
+    install_dir="$TRIMKIT_UPDATE_INSTALL_DIR"
+  elif [ -f "${HOME}/.trimkit/install-dir" ]; then
+    install_dir="$(cat "${HOME}/.trimkit/install-dir")"
+  else
+    # Not installed via install.sh — skip check silently
+    return 0
+  fi
+
+  # Read local version from the trimkit clone's package.json
+  pkg_json="$install_dir/package.json"
+  [ -f "$pkg_json" ] || return 0
+  local_version="$(python3 -c "
+import json, sys
+print(json.load(open(sys.argv[1]))['version'])
+" "$pkg_json" 2>/dev/null)" || return 0
+  [ -n "$local_version" ] || return 0
+
+  # Ensure state directory exists
+  mkdir -p "$STATE_DIR" 2>/dev/null || return 0
+
+  # Check whether the last-checked timestamp is within TTL
+  ttl_expired=1
+  if [ -f "$STATE_DIR/last-checked" ]; then
+    last_checked="$(cat "$STATE_DIR/last-checked" 2>/dev/null)"
+    if [ -n "$last_checked" ]; then
+      python3 -c "
+from datetime import datetime, timezone
+import sys
+last = datetime.fromisoformat(sys.argv[1].replace('Z', '+00:00'))
+now_dt = datetime.now(timezone.utc)
+sys.exit(0 if (now_dt - last).total_seconds() < float(sys.argv[2]) else 1)
+" "$last_checked" "$TTL" 2>/dev/null && ttl_expired=0
+    fi
+  fi
+
+  # Fetch the remote version if the TTL has expired
+  if [ "$ttl_expired" -eq 1 ]; then
+    # Compute current timestamp lazily — only needed here for writing last-checked
+    now="$(python3 -c "
+from datetime import datetime, timezone
+print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+" 2>/dev/null)" || return 0
+
+    # Update last-checked before the fetch so a network failure still backs off
+    # for the full TTL — avoids a 3-second curl timeout on every prompt when the
+    # network is flaky.
+    printf '%s\n' "$now" > "$STATE_DIR/last-checked.tmp" \
+      && mv "$STATE_DIR/last-checked.tmp" "$STATE_DIR/last-checked" \
+      || return 0
+
+    remote_json="$(curl -sf --max-time 3 "$REMOTE_URL" 2>/dev/null)" || return 0
+
+    latest_version="$(printf '%s' "$remote_json" | python3 -c "
+import json, sys
+print(json.load(sys.stdin)['version'])
+" 2>/dev/null)" || return 0
+    [ -n "$latest_version" ] || return 0
+
+    printf '%s\n' "$latest_version" > "$STATE_DIR/latest-version.tmp" \
+      && mv "$STATE_DIR/latest-version.tmp" "$STATE_DIR/latest-version" \
+      || return 0
+  fi
+
+  # Read the cached latest version (may have just been written above)
+  [ -f "$STATE_DIR/latest-version" ] || return 0
+  latest_version="$(cat "$STATE_DIR/latest-version" 2>/dev/null)"
+  [ -n "$latest_version" ] || return 0
+
+  # Compare versions — is latest strictly newer than local?
+  # Uses a 4-tuple (major, minor, patch, is_release) so pre-release versions
+  # (e.g. 1.0.0-rc.1) sort below their corresponding release (1.0.0), meaning
+  # a user on 1.0.0-rc.1 will be notified when 1.0.0 ships.
+  is_newer="$(python3 -c "
+import sys, re
+def parse(v):
+    m = re.match(r'^(\d+)(?:\.(\d+))?(?:\.(\d+))?([-+].*)?', v.strip())
+    if not m:
+        return (0, 0, 0, 1)
+    major = int(m.group(1) or 0)
+    minor = int(m.group(2) or 0)
+    patch = int(m.group(3) or 0)
+    pre = 0 if m.group(4) else 1  # pre-release sorts below release
+    return (major, minor, patch, pre)
+print('1' if parse(sys.argv[2]) > parse(sys.argv[1]) else '0')
+" "$local_version" "$latest_version" 2>/dev/null)" || return 0
+  [ "$is_newer" = "1" ] || return 0
+
+  # Check snooze — suppress the notice if this version is still snoozed
+  if [ -f "$STATE_DIR/snoozed-version" ] && [ -f "$STATE_DIR/snoozed-until" ]; then
+    snoozed_version="$(cat "$STATE_DIR/snoozed-version" 2>/dev/null)"
+    snoozed_until="$(cat "$STATE_DIR/snoozed-until" 2>/dev/null)"
+    if [ "$snoozed_version" = "$latest_version" ] && [ -n "$snoozed_until" ]; then
+      python3 -c "
+from datetime import datetime, timezone
+import sys
+until = datetime.fromisoformat(sys.argv[1].replace('Z', '+00:00'))
+sys.exit(0 if datetime.now(timezone.utc) < until else 1)
+" "$snoozed_until" 2>/dev/null && return 0
+    fi
+  fi
+
+  # Print the one-line update notice. %q shell-quotes the install path so the
+  # generated command is copy-pasteable even when the path contains spaces.
+  printf 'trimkit v%s is available (you have v%s). Run: cd %q; git pull; ./install.sh\n' \
+    "$latest_version" "$local_version" "$install_dir"
+
+  # Auto-snooze via the dedicated script to avoid repeating on every subsequent
+  # prompt until the next TTL expiry. Best-effort — if it fails the notice
+  # recurs after the TTL (24 h), not on every message.
+  "$(dirname "${BASH_SOURCE[0]}")/trimkit-update-snooze" "$latest_version" 2>/dev/null || true
+}
+
+run_check
+exit 0
