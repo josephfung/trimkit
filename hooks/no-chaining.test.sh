@@ -37,12 +37,14 @@ assert_allowed() {
   fi
 }
 
-# Assert that the hook BLOCKS the command (output contains "continue":false).
+# Assert that the hook BLOCKS the command (output contains a stopReason).
+# The hook uses "continue":true so Claude can retry; blocking is signalled by
+# the presence of a stopReason, not by "continue":false.
 assert_blocked() {
   local desc="$1" cmd="$2"
   local output
   output=$(run_hook "$cmd")
-  if printf '%s' "$output" | grep -qF '"continue":false'; then
+  if printf '%s' "$output" | grep -qF '"stopReason"'; then
     printf 'PASS  %s\n' "$desc"
     passed=$((passed + 1))
   else

@@ -122,6 +122,10 @@ all_segments_safe() {
 # Emit a block response with the original commands split and numbered, so the
 # agent can run them as separate Bash calls without re-parsing the original.
 # Usage: block_with_hint <reason-prefix> <delimiter-regex> <original-command>
+#
+# Uses "continue":true so that Claude Code rejects the command but keeps the
+# agent loop running — Claude can read the hint and retry with separate calls.
+# "continue":false would terminate the session entirely, which is too disruptive.
 block_with_hint() {
   local prefix="$1" delim="$2" orig="$3"
   local n=1 msg="${prefix} Run each as a separate Bash call:"
@@ -132,7 +136,7 @@ block_with_hint() {
 ${n}. ${seg}"
     n=$((n+1))
   done <<< "$(printf '%s' "$orig" | sed "s/[[:space:]]*${delim}[[:space:]]*/\n/g")"
-  printf '%s\n' "{\"continue\":false,\"stopReason\":$(printf '%s' "$msg" | jq -Rs .)}"
+  printf '%s\n' "{\"continue\":true,\"stopReason\":$(printf '%s' "$msg" | jq -Rs .)}"
 }
 
 # Check for && — always blocked.
