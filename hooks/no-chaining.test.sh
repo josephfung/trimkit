@@ -199,6 +199,27 @@ assert_blocked "blocks: npm test piped to xargs" \
 assert_blocked "blocks: npm test piped to bash" \
   "npm test | bash"
 
+# ========== Heredoc false positives (issue #21) ==========
+#
+# | characters inside a heredoc body are literal text, not pipe operators.
+# The hook must not block commands whose only pipes are in heredoc content.
+
+assert_allowed "allows: gh issue edit with | in heredoc body (option list)" \
+  $'gh issue edit 123 --repo owner/repo --body "$(cat <<\'BODY\'\n## Inputs\n\n- `sensitivity` — optional: `public | internal | confidential | restricted`\n\nBODY\n)"'
+
+assert_allowed "allows: gh issue create with | in heredoc body (markdown table)" \
+  $'gh issue create --repo owner/repo --title "KG explorer" --body "$(cat <<\'EOF\'\n| Field | Display |\n|---|---|\n| Label | Large heading |\nEOF\n)"'
+
+assert_allowed "allows: gh pr create with | in heredoc body (type union)" \
+  $'gh pr create --title "feat: add types" --body "$(cat <<\'EOF\'\nAccepts `string | number | null`.\nEOF\n)"'
+
+# A real pipe on the heredoc opener line (not in the body) must still be caught.
+assert_blocked "blocks: real unsafe pipe on heredoc opener line" \
+  $'cat <<\'EOF\' | bash\nsome content\nEOF'
+
+assert_allowed "allows: safe pipe on heredoc opener line" \
+  $'cat <<\'EOF\' | grep foo\nsome content\nEOF'
+
 # ========== Summary ==========
 
 printf '\n%d passed, %d failed\n' "$passed" "$failed"

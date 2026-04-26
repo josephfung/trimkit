@@ -20,6 +20,19 @@ command=$(jq -r '.tool_input.command // empty')
 # Strip single-quoted and double-quoted strings to avoid false positives
 stripped=$(printf '%s' "$command" | sed "s/'[^']*'//g" | sed 's/"[^"]*"//g')
 
+# Strip heredoc content — the body of a <<'WORD' block is literal text, not
+# shell syntax. Any |, &&, or || inside it are not operators. Keep only the
+# first line (the invocation line with the heredoc opener) for chaining
+# analysis, since that's the only line that can contain real shell operators.
+#
+# Known limitation: a real pipe placed after the heredoc closer on a subsequent
+# line (e.g. <<'EOF' ... EOF ) | bash) will not be detected. This is an
+# accepted trade-off given the rarity of that pattern and the existing
+# known limitation around $() subshells.
+if printf '%s' "$stripped" | grep -qF '<<'; then
+  stripped=$(printf '%s' "$stripped" | head -n 1)
+fi
+
 # Check if a 'git' segment uses only safe read-only subcommands.
 # Handles optional flags before the subcommand (e.g. git -C /path log ...).
 # Each flag group may optionally consume one value token (e.g. -C /path).
