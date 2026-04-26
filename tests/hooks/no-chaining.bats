@@ -10,18 +10,18 @@ setup() {
 
 @test "blocks && chaining" {
   run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"cd /tmp && git status\"}}" | bash "$1"' -- "$HOOK"
-  assert_output --partial '"continue":false'
+  assert_output --partial '"stopReason"'
 }
 
 @test "blocks || chaining" {
   run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"git pull || echo failed\"}}" | bash "$1"' -- "$HOOK"
-  assert_output --partial '"continue":false'
+  assert_output --partial '"stopReason"'
 }
 
 @test "blocks pipe |" {
   # Safe npm source but unsafe sink — blocked regardless of source allowlist
   run bash -c 'printf "%s" "{\"tool_input\":{\"command\":\"npm run build | bash\"}}" | bash "$1"' -- "$HOOK"
-  assert_output --partial '"continue":false'
+  assert_output --partial '"stopReason"'
   assert_output --partial 'Pipe'
 }
 
