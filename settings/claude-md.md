@@ -1,5 +1,19 @@
 # TrimKit Hook Compatibility
 
+## Always pull before branching
+
+Before creating a worktree, branch, or starting any feature work, pull the
+latest from the remote main branch first:
+
+```bash
+git pull origin main
+```
+
+Branching from stale code leads to unnecessary rebases and merge conflicts.
+Do this every time — no exceptions.
+
+## No-chaining hook
+
 TrimKit installs a `no-chaining` hook that blocks `&&`, `||`, and unsafe pipes
 in Bash tool calls. Use the patterns below to avoid triggering it.
 
