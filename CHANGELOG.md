@@ -2,7 +2,13 @@
 
 All notable changes to TrimKit are documented here.
 
-## [0.5.0] - Unreleased
+## [0.5.1] - Unreleased
+
+### CLAUDE.md guidance
+- Pull before branching — injected instruction to run `git pull --ff-only` before creating worktrees or branches
+- Issue tracker hygiene — injected instructions to apply pre-existing labels and include acceptance criteria when creating or editing issues
+
+## [0.5.0]
 
 ### Hooks
 - `no-chaining` — blocks `&&`/`||` chaining in Bash tool calls; allowlist covers safe read-only commands and npm scripts

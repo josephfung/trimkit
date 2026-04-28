@@ -71,3 +71,14 @@ Semicolons are not blocked and can be used to sequence commands:
 ```bash
 WORKTREE=/path/to/wt MAIN=/path/to/main; for item in .env; do ln -sf "$MAIN/$item" "$WORKTREE/$item"; fi
 ```
+
+## Creating or editing issues
+
+When creating or editing issues in any tracker (GitHub Issues, GitLab Issues,
+Jira, Linear, Azure DevOps, etc.):
+
+1. **Apply pre-existing labels** — query the tracker for its current labels,
+   tags, or categories and apply every applicable one. Never leave an issue
+   uncategorized and never invent new labels without asking.
+2. **Include acceptance criteria** — every issue must list specific, testable
+   conditions that define when the work is done.
