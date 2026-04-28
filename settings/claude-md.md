@@ -6,7 +6,7 @@ Before creating a worktree, branch, or starting any feature work, pull the
 latest from the remote main branch first:
 
 ```bash
-git pull origin main
+git pull --ff-only origin main
 ```
 
 Branching from stale code leads to unnecessary rebases and merge conflicts.
