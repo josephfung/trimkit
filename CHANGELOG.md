@@ -17,6 +17,9 @@ All notable changes to TrimKit are documented here.
 - `trimkit-update-check` — bin script called as a `UserPromptSubmit` hook on each Claude Code session
 - `trimkit-update-snooze` — bin script that writes snooze state; also callable manually
 
+### CLAUDE.md guidance
+- Issue tracker hygiene — injected instructions to apply pre-existing labels and include acceptance criteria when creating or editing issues
+
 ### Installer
 - Plugin bootstrapping via `plugins/plugins.txt`
 - `--upgrade` flag to replace existing real files with symlinks (backs up originals)
