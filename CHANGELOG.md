@@ -2,7 +2,13 @@
 
 All notable changes to TrimKit are documented here.
 
-## [0.5.0] - Unreleased
+## [0.5.1] - Unreleased
+
+### CLAUDE.md guidance
+- Pull before branching — injected instruction to run `git pull --ff-only` before creating worktrees or branches
+- Issue tracker hygiene — injected instructions to apply pre-existing labels and include acceptance criteria when creating or editing issues
+
+## [0.5.0]
 
 ### Hooks
 - `no-chaining` — blocks `&&`/`||` chaining in Bash tool calls; allowlist covers safe read-only commands and npm scripts
@@ -16,9 +22,6 @@ All notable changes to TrimKit are documented here.
 - Periodic update notifications — TTL-cached (24h) check against `main` branch on GitHub; silent when up-to-date or on fetch failure; auto-snoozes per-version for 7 days after notifying
 - `trimkit-update-check` — bin script called as a `UserPromptSubmit` hook on each Claude Code session
 - `trimkit-update-snooze` — bin script that writes snooze state; also callable manually
-
-### CLAUDE.md guidance
-- Issue tracker hygiene — injected instructions to apply pre-existing labels and include acceptance criteria when creating or editing issues
 
 ### Installer
 - Plugin bootstrapping via `plugins/plugins.txt`
