@@ -236,7 +236,7 @@ install_plugins
 
 hooks_merged=()
 hooks_skipped=()
-hooks_failed=()
+settings_failed=()
 perms_merged=()
 perms_skipped=()
 
@@ -245,6 +245,7 @@ merge_settings() {
   local dst="$HOME/.claude/settings.json"
 
   if [ ! -f "$src" ]; then
+    warned+=("settings/hooks.json not found — hooks and permissions not merged")
     return
   fi
 
@@ -261,8 +262,13 @@ merge_settings() {
   #
   # Permissions: for each entry in source permissions.allow, add it to the
   # destination permissions.allow array if not already present (exact match).
-  merge_result="$(python3 - "$src" "$dst" <<'PYEOF'
-import sys, json, copy
+  #
+  # Writes to a temp file first, then atomically renames to prevent corruption
+  # if the script crashes mid-write.
+  local merge_stderr
+  merge_stderr="$(mktemp)"
+  merge_result="$(python3 - "$src" "$dst" <<'PYEOF' 2>"$merge_stderr"
+import sys, json, copy, tempfile, os
 
 src_path, dst_path = sys.argv[1], sys.argv[2]
 
@@ -306,8 +312,19 @@ for event_type, src_entries in src_hooks.items():
 
 src_perms = src.get("permissions", {}).get("allow", [])
 if src_perms:
+    # Validate destination permissions shape before operating on it
+    dst_perms = dst.get("permissions")
+    if dst_perms is not None and not isinstance(dst_perms, dict):
+        print(f"error: 'permissions' in {dst_path} is {type(dst_perms).__name__}, expected object", file=sys.stderr)
+        sys.exit(1)
+
     dst_allow = dst.setdefault("permissions", {}).setdefault("allow", [])
-    dst_allow_set = set(dst_allow)
+    if not isinstance(dst_allow, list):
+        print(f"error: 'permissions.allow' in {dst_path} is {type(dst_allow).__name__}, expected array", file=sys.stderr)
+        sys.exit(1)
+
+    # Only deduplicate against string entries (skip any non-hashable objects)
+    dst_allow_set = {e for e in dst_allow if isinstance(e, str)}
 
     for perm in src_perms:
         if perm in dst_allow_set:
@@ -317,9 +334,16 @@ if src_perms:
             dst_allow_set.add(perm)
             added.append("PERM:" + perm)
 
-with open(dst_path, "w") as f:
-    json.dump(dst, f, indent=2)
-    f.write("\n")
+# Atomic write: write to temp file, then rename to prevent corruption on crash
+tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(dst_path), suffix=".tmp")
+try:
+    with os.fdopen(tmp_fd, "w") as f:
+        json.dump(dst, f, indent=2)
+        f.write("\n")
+    os.rename(tmp_path, dst_path)
+except:
+    os.unlink(tmp_path)
+    raise
 
 # Report results on stdout for the shell to parse
 for item in added:
@@ -327,7 +351,14 @@ for item in added:
 for item in skipped:
     print("SKIPPED:" + item)
 PYEOF
-  )" || { hooks_failed+=("settings/hooks.json (python error)"); return; }
+  )" || {
+    local detail
+    detail="$(cat "$merge_stderr" 2>/dev/null)"
+    settings_failed+=("settings merge: ${detail:-unknown python error}")
+    rm -f "$merge_stderr"
+    return
+  }
+  rm -f "$merge_stderr"
 
   while IFS= read -r line; do
     case "$line" in
@@ -484,10 +515,10 @@ if [ ${#hooks_skipped[@]} -gt 0 ]; then
   for f in "${hooks_skipped[@]}"; do echo "  - $f"; done
 fi
 
-if [ ${#hooks_failed[@]} -gt 0 ]; then
+if [ ${#settings_failed[@]} -gt 0 ]; then
   echo ""
-  echo "Hook merge failures:"
-  for f in "${hooks_failed[@]}"; do echo "  ✗ $f"; done
+  echo "Settings merge failures:"
+  for f in "${settings_failed[@]}"; do echo "  ✗ $f"; done
 fi
 
 if [ ${#perms_merged[@]} -gt 0 ]; then

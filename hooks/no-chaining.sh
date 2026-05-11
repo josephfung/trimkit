@@ -137,7 +137,11 @@ npx_segment_safe() {
   while [ $i -lt ${#tokens[@]} ]; do
     token="${tokens[$i]}"
     case "$token" in
-      --prefix|--package|-p|--call|-c|--shell-auto-fallback)
+      --call|-c)
+        # --call/-c runs arbitrary shell code — never safe
+        return 1
+        ;;
+      --prefix|--package|-p)
         # Skip flag and its value argument
         i=$((i + 2))
         continue

@@ -243,6 +243,12 @@ assert_blocked "blocks: npx arbitrary-package | tail" \
 assert_blocked "blocks: npx tsx | tail" \
   "npx tsx script.ts | tail -20"
 
+assert_blocked "blocks: bare npx piped" \
+  "npx | tail -20"
+
+assert_blocked "blocks: npx --call with safe binary name" \
+  "npx --call 'echo pwned' vitest | tail -20"
+
 # ========== npx as pipe source: safe source, unsafe sink ==========
 
 assert_blocked "blocks: npx vitest piped to xargs" \
