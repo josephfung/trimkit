@@ -112,6 +112,51 @@ npm_segment_safe() {
   [[ "$script" =~ ^(test|lint|check|typecheck|type-check|build|compile)(:[a-zA-Z0-9_-]+)?$ ]]
 }
 
+# Check if an 'npx' segment is safe to use as a pipe SOURCE.
+#
+# Safe binaries: vitest, jest, mocha, tsc, eslint, prettier, biome, oxlint
+#   (test runners, linters, type checkers, formatters — all read-only or
+#   side-effect-free when piped)
+#
+# Handles --prefix <path> and other value-consuming flags before the binary name.
+npx_segment_safe() {
+  local segment="$1"
+
+  # Must start with npx
+  [[ "$segment" =~ ^npx([[:space:]]|$) ]] || return 1
+
+  # Tokenize into a bash array (splits on whitespace)
+  local tokens
+  read -ra tokens <<< "$segment"
+
+  local i=1  # start after 'npx'
+  local binary=""
+
+  # npx flags that consume the next token as their value
+  local token
+  while [ $i -lt ${#tokens[@]} ]; do
+    token="${tokens[$i]}"
+    case "$token" in
+      --prefix|--package|-p|--call|-c|--shell-auto-fallback)
+        # Skip flag and its value argument
+        i=$((i + 2))
+        continue
+        ;;
+      -*)
+        # Boolean flag (--yes, --no, etc.) — skip
+        i=$((i + 1))
+        continue
+        ;;
+    esac
+    # First non-flag token is the binary name
+    binary="$token"
+    break
+  done
+
+  # Safe binaries — test runners, linters, type checkers, formatters
+  [[ "$binary" =~ ^(vitest|jest|mocha|tsc|eslint|prettier|biome|oxlint)$ ]]
+}
+
 # Helper: check that every segment in a newline-separated list starts with a safe
 # read-only command. Used for both | and || allowlisting.
 all_segments_safe() {
@@ -186,6 +231,8 @@ if printf '%s' "$no_double_pipe" | grep -qF '|'; then
   if all_segments_safe "$source_segment"; then
     source_ok=1
   elif npm_segment_safe "$source_segment"; then
+    source_ok=1
+  elif npx_segment_safe "$source_segment"; then
     source_ok=1
   fi
 

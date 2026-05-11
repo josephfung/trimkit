@@ -237,8 +237,10 @@ install_plugins
 hooks_merged=()
 hooks_skipped=()
 hooks_failed=()
+perms_merged=()
+perms_skipped=()
 
-merge_hooks() {
+merge_settings() {
   local src="$SCRIPT_DIR/settings/hooks.json"
   local dst="$HOME/.claude/settings.json"
 
@@ -251,10 +253,14 @@ merge_hooks() {
     echo "{}" > "$dst"
   fi
 
-  # Use Python to merge hooks without duplicates.
-  # For each hook event type (PreToolUse, etc.) and each matcher entry in the
+  # Use Python to merge hooks and permissions without duplicates.
+  #
+  # Hooks: for each event type (PreToolUse, etc.) and each matcher entry in the
   # source, find or create the matching entry in the destination, then add any
   # hook commands that are not already present (matched by "command" field).
+  #
+  # Permissions: for each entry in source permissions.allow, add it to the
+  # destination permissions.allow array if not already present (exact match).
   merge_result="$(python3 - "$src" "$dst" <<'PYEOF'
 import sys, json, copy
 
@@ -265,11 +271,13 @@ with open(src_path) as f:
 with open(dst_path) as f:
     dst = json.load(f)
 
-src_hooks = src.get("hooks", {})
-dst_hooks = dst.setdefault("hooks", {})
-
 added = []
 skipped = []
+
+# --- Merge hooks ---
+
+src_hooks = src.get("hooks", {})
+dst_hooks = dst.setdefault("hooks", {})
 
 for event_type, src_entries in src_hooks.items():
     dst_entries = dst_hooks.setdefault(event_type, [])
@@ -288,33 +296,50 @@ for event_type, src_entries in src_hooks.items():
         for hook in src_entry.get("hooks", []):
             cmd = hook.get("command")
             if cmd in dst_cmds:
-                skipped.append(cmd)
+                skipped.append("HOOK:" + cmd)
             else:
                 dst_entry.setdefault("hooks", []).append(copy.deepcopy(hook))
                 dst_cmds.add(cmd)
-                added.append(cmd)
+                added.append("HOOK:" + cmd)
+
+# --- Merge permissions ---
+
+src_perms = src.get("permissions", {}).get("allow", [])
+if src_perms:
+    dst_allow = dst.setdefault("permissions", {}).setdefault("allow", [])
+    dst_allow_set = set(dst_allow)
+
+    for perm in src_perms:
+        if perm in dst_allow_set:
+            skipped.append("PERM:" + perm)
+        else:
+            dst_allow.append(perm)
+            dst_allow_set.add(perm)
+            added.append("PERM:" + perm)
 
 with open(dst_path, "w") as f:
     json.dump(dst, f, indent=2)
     f.write("\n")
 
 # Report results on stdout for the shell to parse
-for cmd in added:
-    print("ADDED:" + cmd)
-for cmd in skipped:
-    print("SKIPPED:" + cmd)
+for item in added:
+    print("ADDED:" + item)
+for item in skipped:
+    print("SKIPPED:" + item)
 PYEOF
   )" || { hooks_failed+=("settings/hooks.json (python error)"); return; }
 
   while IFS= read -r line; do
     case "$line" in
-      ADDED:*)   hooks_merged+=("${line#ADDED:}") ;;
-      SKIPPED:*) hooks_skipped+=("${line#SKIPPED:}") ;;
+      ADDED:HOOK:*)   hooks_merged+=("${line#ADDED:HOOK:}") ;;
+      SKIPPED:HOOK:*) hooks_skipped+=("${line#SKIPPED:HOOK:}") ;;
+      ADDED:PERM:*)   perms_merged+=("${line#ADDED:PERM:}") ;;
+      SKIPPED:PERM:*) perms_skipped+=("${line#SKIPPED:PERM:}") ;;
     esac
   done <<< "$merge_result"
 }
 
-merge_hooks
+merge_settings
 
 # ---------------------------------------------------------------------------
 # CLAUDE.md injection
@@ -463,6 +488,18 @@ if [ ${#hooks_failed[@]} -gt 0 ]; then
   echo ""
   echo "Hook merge failures:"
   for f in "${hooks_failed[@]}"; do echo "  ✗ $f"; done
+fi
+
+if [ ${#perms_merged[@]} -gt 0 ]; then
+  echo ""
+  echo "Permissions merged into ~/.claude/settings.json:"
+  for f in "${perms_merged[@]}"; do echo "  ✓ $f"; done
+fi
+
+if [ ${#perms_skipped[@]} -gt 0 ]; then
+  echo ""
+  echo "Permissions already present (skipped):"
+  for f in "${perms_skipped[@]}"; do echo "  - $f"; done
 fi
 
 case "$claude_md_result" in

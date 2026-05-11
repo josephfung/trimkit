@@ -44,11 +44,16 @@ The full allowlist for pipe sources and sinks:
 `uniq`, `wc` — plus `git` (read-only subcommands: `branch`, `diff`, `log`,
 `ls-files`, `rev-parse`, `show`, `status`).
 
-Additionally allowed as a pipe **source only**: `npm test`, `npm t`, `npm ls`,
-`npm list`, `npm audit`, `npm outdated`, `npm view`, `npm info`, and
-`npm run <script>` where the script name is `test`, `lint`, `check`,
-`typecheck`, `type-check`, `build`, or `compile` (colon-namespaced variants
-like `test:unit` also work). The `--prefix <path>` flag is supported.
+Additionally allowed as a pipe **source only**:
+
+- `npm test`, `npm t`, `npm ls`, `npm list`, `npm audit`, `npm outdated`,
+  `npm view`, `npm info`, and `npm run <script>` where the script name is
+  `test`, `lint`, `check`, `typecheck`, `type-check`, `build`, or `compile`
+  (colon-namespaced variants like `test:unit` also work).
+- `npx <binary>` where the binary is `vitest`, `jest`, `mocha`, `tsc`,
+  `eslint`, `prettier`, `biome`, or `oxlint`.
+
+Both `npm --prefix <path>` and `npx --prefix <path>` are supported.
 
 **Never use `xargs` in pipes** — it is not on the allowlist and will be blocked.
 Use the Grep tool or pass file lists explicitly instead.
@@ -57,6 +62,8 @@ Use the Grep tool or pass file lists explicitly instead.
 # Allowed:
 npm test | tail -60
 npm run lint | grep error
+npx vitest run tests/unit/foo.test.ts | tail -30
+npx --prefix /path/to/project jest --verbose | grep PASS
 git log --oneline | grep feat
 find . -name "*.ts" | grep src
 

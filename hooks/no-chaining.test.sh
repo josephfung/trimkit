@@ -191,6 +191,66 @@ assert_blocked "blocks: npm --prefix /path install | tail" \
 assert_blocked "blocks: npm --prefix /path run deploy | tail" \
   "npm --prefix /path run deploy | tail -20"
 
+# ========== npx as pipe source: safe binaries ==========
+
+assert_allowed "allows: npx vitest run | tail" \
+  "npx vitest run tests/unit/foo.test.ts | tail -30"
+
+assert_allowed "allows: npx --prefix /path vitest run | tail" \
+  "npx --prefix /Users/josephfung/Projects/myapp vitest run tests/unit/foo.test.ts | tail -30"
+
+assert_allowed "allows: npx --prefix /path vitest run 2>&1 | tail" \
+  "npx --prefix /Users/josephfung/Projects/myapp vitest run tests/unit/foo.test.ts 2>&1 | tail -30"
+
+assert_allowed "allows: npx --prefix /path vitest run 2>&1 | grep" \
+  "npx --prefix /Users/josephfung/Projects/myapp vitest run tests/unit/foo.test.ts 2>&1 | grep -E '(PASS|FAIL)'"
+
+assert_allowed "allows: npx --prefix /path vitest run | grep | head" \
+  "npx --prefix /Users/josephfung/Projects/myapp vitest run tests/unit/foo.test.ts --reporter=verbose 2>&1 | grep -E '(PASS|FAIL)' | head -30"
+
+assert_allowed "allows: npx jest | tail" \
+  "npx jest --verbose | tail -30"
+
+assert_allowed "allows: npx mocha | grep" \
+  "npx mocha tests/ | grep passing"
+
+assert_allowed "allows: npx tsc --noEmit | tail" \
+  "npx tsc --noEmit | tail -40"
+
+assert_allowed "allows: npx eslint | grep" \
+  "npx eslint src/ | grep error"
+
+assert_allowed "allows: npx prettier --check | tail" \
+  "npx prettier --check src/ | tail -20"
+
+assert_allowed "allows: npx biome check | grep" \
+  "npx biome check src/ | grep error"
+
+assert_allowed "allows: npx oxlint | grep" \
+  "npx oxlint src/ | grep error"
+
+assert_allowed "allows: npx --yes vitest run | tail" \
+  "npx --yes vitest run | tail -30"
+
+# ========== npx as pipe source: unsafe binaries ==========
+
+assert_blocked "blocks: npx ts-node | tail" \
+  "npx ts-node script.ts | tail -20"
+
+assert_blocked "blocks: npx arbitrary-package | tail" \
+  "npx some-package | tail -20"
+
+assert_blocked "blocks: npx tsx | tail" \
+  "npx tsx script.ts | tail -20"
+
+# ========== npx as pipe source: safe source, unsafe sink ==========
+
+assert_blocked "blocks: npx vitest piped to xargs" \
+  "npx vitest run | xargs rm"
+
+assert_blocked "blocks: npx vitest piped to bash" \
+  "npx vitest run | bash"
+
 # ========== npm as pipe source: safe source, unsafe sink ==========
 
 assert_blocked "blocks: npm test piped to xargs" \

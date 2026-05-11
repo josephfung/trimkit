@@ -1,5 +1,13 @@
 {
-  "_comment": "Merge this into your ~/.claude/settings.json under hooks",
+  "_comment": "Merged into ~/.claude/settings.json by install.sh (hooks + permissions)",
+  "permissions": {
+    "allow": [
+      "Bash(git -C:*)",
+      "Bash(npm --prefix:*)",
+      "Bash(pnpm --prefix:*)",
+      "Bash(npx --prefix:*)"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
