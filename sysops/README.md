@@ -77,11 +77,11 @@ Environment overrides for testing:
 
 ## Learnings
 
-The sysops agent writes a learning entry whenever it discovers something worth persisting for future sessions — server quirks, known-safe containers, procedure deviations, and similar deployment-specific context. Learnings are deduplicated by `key`: the latest entry for a given key supersedes earlier ones. History is preserved in the file (append-only); only the latest entry per key is surfaced at read time.
+The sysops agent writes a learning entry whenever it discovers something worth persisting for future sessions — server quirks, known-safe containers, procedure deviations, and similar deployment-specific context. Learnings are deduplicated by `(deployment, key)`: the latest entry for a given pair supersedes earlier ones. History is preserved in the file (append-only); only the latest entry per pair is surfaced at read time.
 
 ### Learnings location
 
-```
+```text
 ~/.claude/sysops/learnings.jsonl
 ```
 
@@ -109,7 +109,7 @@ Each line is a JSON object:
 
 Use the `/sysops learnings` slash command:
 
-```
+```bash
 /sysops learnings                # all stored learnings (deduplicated)
 /sysops learnings Pulse          # learnings for Pulse only
 ```

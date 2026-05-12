@@ -154,6 +154,19 @@ assert obj['source'] == 'observed'
   assert_output --partial "confidence"
 }
 
+@test "exits 1 with error when confidence is a boolean" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"k\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":true,\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+  assert_output --partial "confidence"
+}
+
+@test "exits 1 with error message when source field is missing" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"k\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":0.9}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+}
+
 @test "concurrent writes all produce valid JSONL lines" {
   for i in 1 2 3 4 5; do
     echo "{\"deployment\":\"Pulse\",\"key\":\"key-${i}\",\"type\":\"quirk\",\"insight\":\"learning ${i}\",\"confidence\":0.8,\"source\":\"observed\"}" \

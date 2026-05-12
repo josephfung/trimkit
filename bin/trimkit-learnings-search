@@ -60,7 +60,7 @@ done
 if [ ! -f "$LEARNINGS_FILE" ]; then
   # Not an error — the store simply hasn't been written to yet
   if [ "$human_output" = "true" ]; then
-    echo "No learnings stored yet at ~/.claude/sysops/learnings.jsonl"
+    echo "No learnings stored yet at $LEARNINGS_FILE"
     echo "Learnings are written by the sysops agent when it discovers server quirks."
   fi
   exit 0

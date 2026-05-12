@@ -75,7 +75,7 @@ done
 
 if [ ! -f "$LOG_FILE" ]; then
   if [ "$human_output" = "true" ]; then
-    echo "No audit log found at ~/.claude/sysops/audit.jsonl"
+    echo "No audit log found at $LOG_FILE"
     echo "Logs are written after each /sysops status or /sysops update run."
   fi
   exit 0

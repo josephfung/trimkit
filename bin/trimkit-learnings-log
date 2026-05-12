@@ -54,7 +54,7 @@ try:
 except (json.JSONDecodeError, ValueError) as e:
     print(f'trimkit-learnings-log: error: invalid JSON on stdin: {e}', file=sys.stderr)
     sys.exit(1)
-for field in ('deployment', 'key', 'type', 'insight'):
+for field in ('deployment', 'key', 'type', 'insight', 'source'):
     if not obj.get(field):
         print(f'trimkit-learnings-log: error: \"{field}\" field is required and must be non-empty', file=sys.stderr)
         sys.exit(1)
@@ -63,7 +63,12 @@ if obj['type'] not in valid_types:
     print(f'trimkit-learnings-log: error: \"type\" must be one of {sorted(valid_types)!r}, got {obj[\"type\"]!r}', file=sys.stderr)
     sys.exit(1)
 conf = obj.get('confidence')
-if conf is None or not isinstance(conf, (int, float)) or not (0.0 <= conf <= 1.0):
+if (
+    conf is None
+    or isinstance(conf, bool)
+    or not isinstance(conf, (int, float))
+    or not (0.0 <= conf <= 1.0)
+):
     print(f'trimkit-learnings-log: error: \"confidence\" must be a number between 0.0 and 1.0, got {conf!r}', file=sys.stderr)
     sys.exit(1)
 obj['ts'] = sys.argv[1]

@@ -5,7 +5,7 @@ description: Invoke the sysops subagent for VPS maintenance. Use when the user r
 
 # Sysops
 
-If the argument starts with `log` or `learnings`, handle it directly — do NOT delegate to the sysops subagent.
+If the first word of the argument is `log` or `learnings`, handle it directly — do NOT delegate to the sysops subagent.
 
 ## /sysops log
 
