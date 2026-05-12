@@ -17,18 +17,57 @@ Do this every time — no exceptions.
 TrimKit installs a `no-chaining` hook that blocks `&&`, `||`, and unsafe pipes
 in Bash tool calls. Use the patterns below to avoid triggering it.
 
-## Running commands in a specific directory
+## Use built-in tools instead of shell utilities
 
-Never chain with `&&` — the hook blocks it. Use the built-in flag instead:
+**Never use `cat`, `head`, `tail`, `sed`, or `awk` for direct file operations.**
+Use the `Read` tool instead — it supports `offset` (starting line) and `limit`
+(number of lines) for reading specific ranges. These utilities are still allowed
+as filters in pipes (see the Pipes section below).
 
 ```bash
-# npm — use --prefix:
+# Wrong — triggers permission prompts and bypasses built-in tools:
+sed -n '335,340p' /path/to/file.ts
+cat /path/to/file.ts | head -20
+head -50 /path/to/file.ts
+
+# Right — use the Read tool:
+Read(file_path="/path/to/file.ts", offset=335, limit=6)
+```
+
+Similarly, use `Grep` instead of `grep`/`rg`, `Glob` instead of `find`/`ls`,
+and `Edit` instead of `sed`/`awk` for modifications. The built-in tools are
+faster, don't require permission approvals, and give better user visibility.
+
+## Running commands in a specific directory
+
+**Never use `cd /path && command`** — the `&&` will be blocked by the hook, and
+`cd` does not persist between Bash tool calls anyway. Use the built-in flag for
+each tool:
+
+```bash
+# Wrong — blocked by the hook:
+cd /path/to/dir && npm list nylas | head -5
+cd /path/to/dir && git status
+cd /path/to/dir && pnpm test
+
+# Right — use --prefix or -C:
+npm --prefix /path/to/dir list nylas | head -5
+pnpm --prefix /path/to/dir test
+git -C /path/to/dir status
+```
+
+All three package managers support `--prefix`:
+
+```bash
+# npm:
 npm --prefix /path/to/dir install
 npm --prefix /path/to/dir run test
-npm --prefix /path/to/dir run build
 
-# git — use -C:
-git -C /path/to/dir status
+# pnpm:
+pnpm --prefix /path/to/dir install
+pnpm --prefix /path/to/dir run test
+
+# git:
 git -C /path/to/dir add file.ts
 git -C /path/to/dir commit -m "message"
 ```
