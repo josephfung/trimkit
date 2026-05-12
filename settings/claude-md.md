@@ -19,11 +19,12 @@ in Bash tool calls. Use the patterns below to avoid triggering it.
 
 ## Use built-in tools instead of shell utilities
 
-**Never use `cat`, `head`, `tail`, `sed`, or `awk` to read file contents.**
+**Never use `cat`, `head`, `tail`, `sed`, or `awk` for direct file operations.**
 Use the `Read` tool instead — it supports `offset` (starting line) and `limit`
-(number of lines) for reading specific ranges:
+(number of lines) for reading specific ranges. These utilities are still allowed
+as filters in pipes (see the Pipes section below).
 
-```
+```bash
 # Wrong — triggers permission prompts and bypasses built-in tools:
 sed -n '335,340p' /path/to/file.ts
 cat /path/to/file.ts | head -20
