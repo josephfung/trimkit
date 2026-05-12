@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# trimkit-learnings-log — Append a sysops learning entry to the persistent JSONL store.
+#
+# Reads a JSON object from stdin, injects a "ts" field (current UTC timestamp),
+# and appends the entry as a single line to the learnings log.
+#
+# Required fields in the JSON input:
+#   deployment  string    deployment name (e.g. "Pulse")
+#   key         string    stable kebab-case identifier for this learning (e.g. "caddy-restart-required-after-upgrade")
+#   type        string    one of: quirk, known-safe, procedure, warning
+#   insight     string    human-readable description of what was learned
+#   confidence  number    0.0–1.0; how confident the agent is in this learning
+#   source      string    how the learning was discovered (e.g. "observed", "inferred")
+#
+# Deduplication is handled at read time by trimkit-learnings-search: the latest
+# entry for a given (deployment, key) pair wins. The same key on different
+# deployments is kept as independent entries. This script never modifies existing entries.
+#
+# The single printf write is atomic on Linux/macOS for payloads under PIPE_BUF
+# (~4KB), which comfortably covers the learnings entry schema.
+#
+# Environment overrides (for testing):
+#   TRIMKIT_SYSOPS_LEARNINGS_DIR   override log directory   (default: ~/.claude/sysops)
+#   TRIMKIT_SYSOPS_LEARNINGS_FILE  override log file path   (default: $DIR/learnings.jsonl)
+#
+# Usage:
+#   echo '{"deployment":"Pulse","key":"caddy-restart","type":"quirk",...}' | trimkit-learnings-log
+set -euo pipefail
+
+LEARNINGS_DIR="${TRIMKIT_SYSOPS_LEARNINGS_DIR:-${HOME}/.claude/sysops}"
+LEARNINGS_FILE="${TRIMKIT_SYSOPS_LEARNINGS_FILE:-${LEARNINGS_DIR}/learnings.jsonl}"
+
+# Read JSON from stdin
+json="$(cat)"
+
+if [ -z "$json" ]; then
+  echo "trimkit-learnings-log: error: no JSON received on stdin" >&2
+  exit 1
+fi
+
+# Current UTC timestamp
+ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Inject ts and validate required fields — pipe json into python3 via stdin to
+# avoid shell-argument quoting issues and ARG_MAX limits with large payloads.
+# Validated fields:
+#   key        — dedup anchor; an empty key corrupts the (deployment, key) dedup bucket
+#   deployment — scopes dedup; an empty value silently files the entry under no deployment
+#   type       — must be a known value to keep the store queryable and meaningful
+entry="$(printf '%s' "$json" | python3 -c "
+import json, sys
+try:
+    obj = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError) as e:
+    print(f'trimkit-learnings-log: error: invalid JSON on stdin: {e}', file=sys.stderr)
+    sys.exit(1)
+for field in ('deployment', 'key', 'type', 'insight', 'source'):
+    if not obj.get(field):
+        print(f'trimkit-learnings-log: error: \"{field}\" field is required and must be non-empty', file=sys.stderr)
+        sys.exit(1)
+valid_types = {'quirk', 'known-safe', 'procedure', 'warning'}
+if obj['type'] not in valid_types:
+    print(f'trimkit-learnings-log: error: \"type\" must be one of {sorted(valid_types)!r}, got {obj[\"type\"]!r}', file=sys.stderr)
+    sys.exit(1)
+conf = obj.get('confidence')
+if (
+    conf is None
+    or isinstance(conf, bool)
+    or not isinstance(conf, (int, float))
+    or not (0.0 <= conf <= 1.0)
+):
+    print(f'trimkit-learnings-log: error: \"confidence\" must be a number between 0.0 and 1.0, got {conf!r}', file=sys.stderr)
+    sys.exit(1)
+obj['ts'] = sys.argv[1]
+print(json.dumps(obj, separators=(',', ':')))
+" "$ts")"
+
+# Create log directory if needed
+mkdir -p "$LEARNINGS_DIR" || { echo "trimkit-learnings-log: error: cannot create log directory '$LEARNINGS_DIR'" >&2; exit 1; }
+
+# Append — atomic for single-line writes under PIPE_BUF
+printf '%s\n' "$entry" >> "$LEARNINGS_FILE" || { echo "trimkit-learnings-log: error: cannot write to '$LEARNINGS_FILE'" >&2; exit 1; }

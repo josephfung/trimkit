@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# trimkit-learnings-search — Query the sysops learnings store.
+#
+# Reads ~/.claude/sysops/learnings.jsonl, deduplicates entries by (deployment, key)
+# pair (latest entry per pair wins), optionally filters by deployment, and outputs
+# the surviving entries to stdout.
+#
+# Usage:
+#   trimkit-learnings-search                         # JSONL output (deduplicated)
+#   trimkit-learnings-search --deployment Pulse      # filter to Pulse deployment
+#   trimkit-learnings-search --human                 # human-readable formatted output
+#   trimkit-learnings-search --human --deployment Pulse
+#
+# Arguments:
+#   --deployment <name>   Case-insensitive deployment filter (optional)
+#   --human               Output human-readable formatted text instead of JSONL
+#
+# Output:
+#   Default: One JSON object per line (JSONL), latest-wins deduplicated.
+#   --human: Formatted text with deployment, type, key, confidence, source, timestamp,
+#            and insight for each entry. Shows "No learnings found" when empty.
+#   Exits 0 with no output (JSONL) or a message (--human) if no matching entries exist
+#   or if the store doesn't exist yet.
+#
+# Environment overrides (for testing):
+#   TRIMKIT_SYSOPS_LEARNINGS_DIR   override log directory   (default: ~/.claude/sysops)
+#   TRIMKIT_SYSOPS_LEARNINGS_FILE  override log file path   (default: $DIR/learnings.jsonl)
+set -euo pipefail
+
+LEARNINGS_DIR="${TRIMKIT_SYSOPS_LEARNINGS_DIR:-${HOME}/.claude/sysops}"
+LEARNINGS_FILE="${TRIMKIT_SYSOPS_LEARNINGS_FILE:-${LEARNINGS_DIR}/learnings.jsonl}"
+
+# Parse arguments
+deployment_filter=""
+human_output="false"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --deployment)
+      # Require a non-empty value following the flag
+      if [ $# -lt 2 ] || [ -z "${2:-}" ]; then
+        echo "trimkit-learnings-search: error: --deployment requires an argument" >&2
+        echo "Usage: trimkit-learnings-search [--deployment <name>] [--human]" >&2
+        exit 1
+      fi
+      shift
+      deployment_filter="$1"
+      ;;
+    --human)
+      human_output="true"
+      ;;
+    *)
+      echo "trimkit-learnings-search: error: unknown argument '$1'" >&2
+      echo "Usage: trimkit-learnings-search [--deployment <name>] [--human]" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [ ! -f "$LEARNINGS_FILE" ]; then
+  # Not an error — the store simply hasn't been written to yet
+  if [ "$human_output" = "true" ]; then
+    echo "No learnings stored yet at $LEARNINGS_FILE"
+    echo "Learnings are written by the sysops agent when it discovers server quirks."
+  fi
+  exit 0
+fi
+
+# Read, deduplicate by (deployment, key) pair (latest entry wins), filter by
+# deployment, and output surviving entries (JSONL or human-readable).
+# Dedup strategy: scan all lines in order; for each (deployment, key) pair, keep
+# overwriting with the latest seen entry. Scoping dedup to deployment prevents a
+# key written for one deployment from suppressing the same key on another.
+python3 -c "
+import json, sys
+
+learnings_file = sys.argv[1]
+deployment_filter = sys.argv[2]  # empty string means no filter
+human_output = sys.argv[3] == 'true'
+
+seen = {}    # (deployment, key) -> entry; latest entry per pair wins
+order = []   # insertion-order list of (deployment, key) pairs, first-seen only
+
+corrupt_count = 0
+try:
+    with open(learnings_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                corrupt_count += 1
+                continue
+            dedup_key = (obj.get('deployment', ''), obj.get('key', ''))
+            if dedup_key not in seen:
+                order.append(dedup_key)
+            seen[dedup_key] = obj
+except PermissionError:
+    print(f'trimkit-learnings-search: error: cannot read {learnings_file} (permission denied)', file=sys.stderr)
+    sys.exit(1)
+except OSError as e:
+    print(f'trimkit-learnings-search: error: cannot read learnings file: {e}', file=sys.stderr)
+    sys.exit(1)
+
+if corrupt_count:
+    print(f'trimkit-learnings-search: warning: {corrupt_count} corrupt line(s) skipped', file=sys.stderr)
+
+# Collect filtered entries in first-seen order
+entries = []
+for dedup_key in order:
+    entry = seen[dedup_key]
+    if deployment_filter and entry.get('deployment', '').lower() != deployment_filter.lower():
+        continue
+    entries.append(entry)
+
+if human_output:
+    if not entries:
+        msg = 'No learnings found'
+        if deployment_filter:
+            msg += f' for deployment {deployment_filter!r}'
+        print(msg + '.')
+        if corrupt_count:
+            print(f'Warning: {corrupt_count} corrupt line(s) skipped in learnings store.')
+        sys.exit(0)
+    for e in entries:
+        ts         = e.get('ts', 'unknown')
+        dep        = e.get('deployment', 'unknown')
+        key        = e.get('key', '?')
+        ltype      = e.get('type', '?')
+        insight    = e.get('insight', '')
+        confidence = e.get('confidence', '?')
+        source     = e.get('source', '?')
+        print(f'{dep}  [{ltype}]  {key}  (confidence: {confidence}, source: {source}, recorded: {ts})')
+        if insight:
+            print(f'  {insight}')
+        print()
+    if corrupt_count:
+        print(f'Warning: {corrupt_count} corrupt line(s) skipped in learnings store.')
+else:
+    for e in entries:
+        print(json.dumps(e, separators=(',', ':')))
+" "$LEARNINGS_FILE" "$deployment_filter" "$human_output"
