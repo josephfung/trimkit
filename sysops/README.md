@@ -59,6 +59,22 @@ Environment overrides for testing:
 - `TRIMKIT_SYSOPS_LOG_DIR` — override the log directory
 - `TRIMKIT_SYSOPS_LOG_FILE` — override the log file path
 
+## trimkit-sysops-log-search
+
+`bin/trimkit-sysops-log-search` reads the audit log, optionally filters by deployment, limits to the most recent N entries, and outputs the results. Used by the `/sysops log` slash command.
+
+```bash
+trimkit-sysops-log-search                                # last 10 entries (JSONL)
+trimkit-sysops-log-search --deployment Pulse             # filter to Pulse
+trimkit-sysops-log-search --last 25                      # last 25 entries
+trimkit-sysops-log-search --human                        # human-readable output
+trimkit-sysops-log-search --human --deployment Pulse --last 5
+```
+
+Environment overrides for testing:
+- `TRIMKIT_SYSOPS_LOG_DIR` — override the log directory
+- `TRIMKIT_SYSOPS_LOG_FILE` — override the log file path
+
 ## Learnings
 
 The sysops agent writes a learning entry whenever it discovers something worth persisting for future sessions — server quirks, known-safe containers, procedure deviations, and similar deployment-specific context. Learnings are deduplicated by `key`: the latest entry for a given key supersedes earlier ones. History is preserved in the file (append-only); only the latest entry per key is surfaced at read time.
@@ -108,11 +124,13 @@ Environment overrides for testing:
 
 ## trimkit-learnings-search
 
-`bin/trimkit-learnings-search` reads the learnings store, deduplicates by `(deployment, key)` pair (latest entry per pair wins), optionally filters by deployment, and outputs surviving entries as JSONL to stdout.
+`bin/trimkit-learnings-search` reads the learnings store, deduplicates by `(deployment, key)` pair (latest entry per pair wins), optionally filters by deployment, and outputs surviving entries. Used by the `/sysops learnings` slash command.
 
 ```bash
-trimkit-learnings-search                      # all learnings
-trimkit-learnings-search --deployment Pulse   # Pulse learnings only
+trimkit-learnings-search                              # all learnings (JSONL)
+trimkit-learnings-search --deployment Pulse            # Pulse learnings only
+trimkit-learnings-search --human                       # human-readable output
+trimkit-learnings-search --human --deployment Pulse    # filtered, human-readable
 ```
 
 Environment overrides for testing:
