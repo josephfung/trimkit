@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# trimkit-sysops-log-search — Query the sysops audit log.
+#
+# Reads ~/.claude/sysops/audit.jsonl, optionally filters by deployment, limits
+# to the most recent N entries, and outputs the results to stdout.
+#
+# Usage:
+#   trimkit-sysops-log-search                              # JSONL, last 10
+#   trimkit-sysops-log-search --deployment Pulse           # filter to Pulse
+#   trimkit-sysops-log-search --last 25                    # last 25 entries
+#   trimkit-sysops-log-search --human                      # human-readable output
+#   trimkit-sysops-log-search --human --deployment Pulse --last 5
+#
+# Arguments:
+#   --deployment <name>   Case-insensitive deployment filter (optional)
+#   --last <N>            Limit to N most recent entries (default: 10)
+#   --human               Output human-readable formatted text instead of JSONL
+#
+# Output:
+#   Default: One JSON object per line (JSONL).
+#   --human: Formatted text with timestamp, deployment, env, action, containers,
+#            unregistered containers, and notes. Shows "No audit log found" when
+#            the log file doesn't exist, or "No entries found" when empty/filtered.
+#   Exits 0 with no output (JSONL) or a message (--human) if no matching entries
+#   exist or if the log doesn't exist yet.
+#
+# Environment overrides (for testing):
+#   TRIMKIT_SYSOPS_LOG_DIR   override log directory   (default: ~/.claude/sysops)
+#   TRIMKIT_SYSOPS_LOG_FILE  override log file path   (default: $DIR/audit.jsonl)
+set -euo pipefail
+
+LOG_DIR="${TRIMKIT_SYSOPS_LOG_DIR:-${HOME}/.claude/sysops}"
+LOG_FILE="${TRIMKIT_SYSOPS_LOG_FILE:-${LOG_DIR}/audit.jsonl}"
+
+# Parse arguments
+deployment_filter=""
+limit="10"
+human_output="false"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --deployment)
+      if [ $# -lt 2 ] || [ -z "${2:-}" ]; then
+        echo "trimkit-sysops-log-search: error: --deployment requires an argument" >&2
+        echo "Usage: trimkit-sysops-log-search [--deployment <name>] [--last <N>] [--human]" >&2
+        exit 1
+      fi
+      shift
+      deployment_filter="$1"
+      ;;
+    --last)
+      if [ $# -lt 2 ] || [ -z "${2:-}" ]; then
+        echo "trimkit-sysops-log-search: error: --last requires an argument" >&2
+        echo "Usage: trimkit-sysops-log-search [--deployment <name>] [--last <N>] [--human]" >&2
+        exit 1
+      fi
+      shift
+      # Validate that the value is a positive integer
+      if ! printf '%s' "$1" | grep -qE '^[1-9][0-9]*$'; then
+        echo "trimkit-sysops-log-search: error: --last must be a positive integer, got '$1'" >&2
+        exit 1
+      fi
+      limit="$1"
+      ;;
+    --human)
+      human_output="true"
+      ;;
+    *)
+      echo "trimkit-sysops-log-search: error: unknown argument '$1'" >&2
+      echo "Usage: trimkit-sysops-log-search [--deployment <name>] [--last <N>] [--human]" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [ ! -f "$LOG_FILE" ]; then
+  if [ "$human_output" = "true" ]; then
+    echo "No audit log found at ~/.claude/sysops/audit.jsonl"
+    echo "Logs are written after each /sysops status or /sysops update run."
+  fi
+  exit 0
+fi
+
+# Read audit log, filter by deployment, take last N entries, and output
+# as JSONL or human-readable text.
+python3 -c "
+import json, os, sys
+
+log_file = sys.argv[1]
+deployment_filter = sys.argv[2]  # empty string means no filter
+limit = int(sys.argv[3])
+human_output = sys.argv[4] == 'true'
+
+entries = []
+corrupt_count = 0
+try:
+    with open(log_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                corrupt_count += 1
+                continue
+            if deployment_filter and obj.get('deployment', '').lower() != deployment_filter.lower():
+                continue
+            entries.append(obj)
+except PermissionError:
+    print(f'trimkit-sysops-log-search: error: cannot read {log_file} (permission denied)', file=sys.stderr)
+    sys.exit(1)
+except OSError as e:
+    print(f'trimkit-sysops-log-search: error: cannot read audit log: {e}', file=sys.stderr)
+    sys.exit(1)
+
+entries = entries[-limit:]
+
+if corrupt_count:
+    print(f'trimkit-sysops-log-search: warning: {corrupt_count} corrupt line(s) skipped', file=sys.stderr)
+
+if human_output:
+    if not entries:
+        msg = 'No entries found'
+        if deployment_filter:
+            msg += f' for deployment {deployment_filter!r}'
+        print(msg + '.')
+        if corrupt_count:
+            print(f'Warning: {corrupt_count} corrupt line(s) skipped in audit log.')
+        sys.exit(0)
+
+    for e in entries:
+        ts        = e.get('ts', 'unknown')
+        dep       = e.get('deployment', 'unknown')
+        env       = e.get('env', '?')
+        action    = e.get('action', '?')
+        project   = e.get('project', '?')
+        print(f'{ts}  {dep} [{env}]  {action}  (project: {project})')
+
+        if action == 'maintenance':
+            pkgs   = e.get('packages_upgraded', 0)
+            reboot = e.get('reboot_performed', False)
+            dur    = e.get('reboot_duration_s')
+            reboot_str = f'yes ({dur}s)' if reboot and dur else ('yes' if reboot else 'no')
+            print(f'  Packages upgraded: {pkgs} \u00b7 Reboot: {reboot_str}')
+
+        containers = e.get('containers', {})
+        if containers:
+            parts = [n + (' \u2713' if s == 'healthy' else ' \u2717') for n, s in containers.items()]
+            print('  Containers: ' + '  '.join(parts))
+
+        unregistered = e.get('unregistered_containers', [])
+        unreg_str = '  '.join(u + ' \u26a0' for u in unregistered) if unregistered else 'none'
+        print(f'  Unregistered: {unreg_str}')
+
+        notes = e.get('notes', '')
+        if notes:
+            print(f'  Notes: {notes}')
+        print()
+
+    if corrupt_count:
+        print(f'Warning: {corrupt_count} corrupt line(s) skipped in audit log.')
+else:
+    for e in entries:
+        print(json.dumps(e, separators=(',', ':')))
+" "$LOG_FILE" "$deployment_filter" "$limit" "$human_output"
