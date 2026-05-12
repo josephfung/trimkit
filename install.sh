@@ -264,8 +264,8 @@ merge_settings() {
   # destination permissions.allow array if not already present (exact match).
   #
   # Writes to a temp file first, then atomically renames to prevent corruption
-  # if the script crashes mid-write.
-  local merge_stderr
+  # if the script crashes mid-write. Stderr is captured for actionable errors.
+  local merge_stderr merge_result
   merge_stderr="$(mktemp)"
   merge_result="$(python3 - "$src" "$dst" <<'PYEOF' 2>"$merge_stderr"
 import sys, json, copy, tempfile, os
@@ -337,7 +337,7 @@ if src_perms:
 # Atomic write: write to temp file, then rename to prevent corruption on crash
 tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(dst_path), suffix=".tmp")
 try:
-    with os.fdopen(tmp_fd, "w") as f:
+    with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
         json.dump(dst, f, indent=2)
         f.write("\n")
     os.rename(tmp_path, dst_path)

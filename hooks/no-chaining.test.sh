@@ -249,6 +249,12 @@ assert_blocked "blocks: bare npx piped" \
 assert_blocked "blocks: npx --call with safe binary name" \
   "npx --call 'echo pwned' vitest | tail -20"
 
+assert_blocked "blocks: npx --package with safe binary name" \
+  "npx --package malicious-pkg vitest | tail -20"
+
+assert_blocked "blocks: npx -p with safe binary name" \
+  "npx -p malicious-pkg vitest | tail -20"
+
 # ========== npx as pipe source: safe source, unsafe sink ==========
 
 assert_blocked "blocks: npx vitest piped to xargs" \
