@@ -176,3 +176,64 @@ for line in sys.stdin:
   line_count="$(echo "$output" | grep -c .)"
   assert_equal "$line_count" "1"
 }
+
+# ── --human flag tests ──────────────────────────────────────────────────────
+
+@test "--human shows formatted output with deployment, type, key, and insight" {
+  write_entry "$ENTRY_PULSE_A"
+  run bash "$SCRIPT" --human
+  assert_success
+  assert_output --partial "Pulse"
+  assert_output --partial "[quirk]"
+  assert_output --partial "caddy-restart"
+  assert_output --partial "confidence: 0.9"
+  assert_output --partial "Caddy needs restart after upgrade."
+}
+
+@test "--human with --deployment filters correctly" {
+  write_entry "$ENTRY_PULSE_A"
+  write_entry "$ENTRY_CURIA"
+  run bash "$SCRIPT" --human --deployment Pulse
+  assert_success
+  assert_output --partial "caddy-restart"
+  refute_output --partial "postgres-slow-start"
+}
+
+@test "--human shows 'No learnings found' when file does not exist" {
+  run bash "$SCRIPT" --human
+  assert_success
+  assert_output --partial "No learnings stored yet"
+}
+
+@test "--human shows 'No learnings found' for deployment with no matches" {
+  write_entry "$ENTRY_PULSE_A"
+  run bash "$SCRIPT" --human --deployment Nonexistent
+  assert_success
+  assert_output --partial "No learnings found"
+  assert_output --partial "Nonexistent"
+}
+
+@test "--human with corrupt lines still shows warning on stderr" {
+  printf 'not json\n' >> "$TRIMKIT_SYSOPS_LEARNINGS_FILE"
+  write_entry "$ENTRY_PULSE_A"
+  run bash "$SCRIPT" --human 2>&1
+  assert_success
+  assert_output --partial "warning"
+  assert_output --partial "caddy-restart"
+}
+
+@test "--human deduplicates and shows latest entry" {
+  write_entry "$ENTRY_PULSE_A"
+  write_entry "$ENTRY_PULSE_B"
+  run bash "$SCRIPT" --human
+  assert_success
+  assert_output --partial "Caddy restart confirmed again."
+  refute_output --partial "Caddy needs restart after upgrade."
+}
+
+@test "--human on empty file shows 'No learnings found'" {
+  touch "$TRIMKIT_SYSOPS_LEARNINGS_FILE"
+  run bash "$SCRIPT" --human
+  assert_success
+  assert_output --partial "No learnings found"
+}
