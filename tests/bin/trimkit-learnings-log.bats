@@ -125,6 +125,35 @@ assert obj['source'] == 'observed'
   done
 }
 
+@test "exits 1 with clean error message when stdin is invalid JSON" {
+  run bash -c "echo 'not json at all' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error: invalid JSON on stdin"
+  # Must NOT produce a Python traceback — the message should start with the tool name
+  refute_output --partial "Traceback"
+}
+
+@test "exits 1 with error when confidence is missing" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"k\",\"type\":\"quirk\",\"insight\":\"x\",\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+  assert_output --partial "confidence"
+}
+
+@test "exits 1 with error when confidence is a string" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"k\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":\"0.9\",\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+  assert_output --partial "confidence"
+}
+
+@test "exits 1 with error when confidence is out of range" {
+  run bash -c "echo '{\"deployment\":\"Pulse\",\"key\":\"k\",\"type\":\"quirk\",\"insight\":\"x\",\"confidence\":1.5,\"source\":\"observed\"}' | bash '$SCRIPT'"
+  assert_failure
+  assert_output --partial "error:"
+  assert_output --partial "confidence"
+}
+
 @test "concurrent writes all produce valid JSONL lines" {
   for i in 1 2 3 4 5; do
     echo "{\"deployment\":\"Pulse\",\"key\":\"key-${i}\",\"type\":\"quirk\",\"insight\":\"learning ${i}\",\"confidence\":0.8,\"source\":\"observed\"}" \

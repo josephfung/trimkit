@@ -84,7 +84,7 @@ fi
 # Read audit log, filter by deployment, take last N entries, and output
 # as JSONL or human-readable text.
 python3 -c "
-import json, os, sys
+import json, sys
 
 log_file = sys.argv[1]
 deployment_filter = sys.argv[2]  # empty string means no filter

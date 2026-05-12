@@ -23,6 +23,8 @@ trimkit-sysops-log-search --human [--deployment "<deployment>"] [--last <N>]
 If `trimkit-sysops-log-search` is not on PATH, tell the user:
 > `trimkit-sysops-log-search` is not installed. Run `install.sh` from your trimkit directory to set it up.
 
+If `trimkit-sysops-log-search` is found but exits non-zero, show the user the error output and suggest checking file permissions on `~/.claude/sysops/audit.jsonl`.
+
 ---
 
 ## /sysops learnings
@@ -39,6 +41,8 @@ trimkit-learnings-search --human [--deployment "<deployment>"]
 
 If `trimkit-learnings-search` is not on PATH, tell the user:
 > `trimkit-learnings-search` is not installed. Run `install.sh` from your trimkit directory to set it up.
+
+If `trimkit-learnings-search` is found but exits non-zero, show the user the error output and suggest checking file permissions on `~/.claude/sysops/learnings.jsonl`.
 
 ---
 

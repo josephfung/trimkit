@@ -205,7 +205,7 @@ print(json.dumps({
 ```bash
 if command -v trimkit-learnings-log > /dev/null 2>&1; then trimkit-learnings-log < /tmp/trimkit-sysops-learning-<literal SESSION UUID>.json; fi
 ```
-- If `trimkit-learnings-log` is not on PATH, skip silently and omit the `(learning recorded: <key>)` note from the report.
+- If `trimkit-learnings-log` is not on PATH, note `(learning write skipped — trimkit-learnings-log not on PATH)` in the report instead of `(learning recorded: <key>)`.
 - If `trimkit-learnings-log` is found but returns a non-zero exit code, note `(learning write failed: <key>)` in the report instead of `(learning recorded: <key>)`.
 
 **Call 3** — clean up. Substitute the same literal SESSION UUID:
@@ -285,7 +285,7 @@ Triggers that warrant a learning during maintenance:
 - User confirmed an unregistered container as known-safe (A) → `type: "known-safe"`, `confidence: 1.0`
 - Any other server-specific quirk that will save time in a future session → `type: "quirk"`, `confidence: 0.7–0.9`
 
-Use the same 3-call write pattern as in the status check's learnings section: same JSON schema, same `trimkit-learnings-log` invocation, same session-scoped temp file path (`/tmp/trimkit-sysops-learning-<literal SESSION UUID>.json`), same cleanup, and same Call 2 failure handling (`(learning write failed: <key>)` on non-zero exit, omit note if tool not on PATH).
+Use the same 3-call write pattern as in the status check's learnings section: same JSON schema, same `trimkit-learnings-log` invocation, same session-scoped temp file path (`/tmp/trimkit-sysops-learning-<literal SESSION UUID>.json`), same cleanup, and same Call 2 failure handling (`(learning write failed: <key>)` on non-zero exit, `(learning write skipped — trimkit-learnings-log not on PATH)` if tool not on PATH).
 
 ### 7. Write audit log entry
 
