@@ -115,7 +115,7 @@ find . -name "*.ts" | xargs grep "pattern"
 Semicolons are not blocked and can be used to sequence commands:
 
 ```bash
-WORKTREE=/path/to/wt MAIN=/path/to/main; for item in .env; do ln -sf "$MAIN/$item" "$WORKTREE/$item"; fi
+MAIN=/path/to/main WORKTREE=/path/to/wt; for item in .env; do ln -sf "$MAIN/$item" "$WORKTREE/$item"; fi
 ```
 
 ## Creating or editing issues
