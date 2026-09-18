@@ -100,3 +100,24 @@ write_schema() {
   assert_success
   assert_output ""
 }
+
+@test "exits 2 when migrations has the wrong shape" {
+  echo '{"migrations":"migrations/*.sql"}' > "$ROOT/.claude/prod-debug/config.json"
+  run bash "$SCRIPT" "$ROOT"
+  assert_failure 2
+  assert_output --partial "'migrations' object"
+}
+
+@test "exits 2 when glob is not a string" {
+  echo '{"migrations":{"glob":["migrations/*.sql"]}}' > "$ROOT/.claude/prod-debug/config.json"
+  run bash "$SCRIPT" "$ROOT"
+  assert_failure 2
+  assert_output --partial 'must be a string'
+}
+
+@test "exits 2 when schema.md is not valid UTF-8" {
+  printf '\xff\xfe<!-- prod-debug:last-migration: 068_tasks.sql -->\n' > "$ROOT/.claude/prod-debug/schema.md"
+  run bash "$SCRIPT" "$ROOT"
+  assert_failure 2
+  assert_output --partial 'cannot read'
+}

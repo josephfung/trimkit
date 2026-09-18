@@ -43,7 +43,16 @@ except (OSError, ValueError) as e:
     print(f"Error: cannot read {config_path}: {e}", file=sys.stderr)
     sys.exit(2)
 
-pattern = config.get("migrations", {}).get("glob", "")
+# Validate shape so a malformed config is reported as a config error (exit 2)
+# rather than a traceback with exit 1, which would look like "stale".
+migrations = config.get("migrations", {}) if isinstance(config, dict) else None
+if not isinstance(migrations, dict):
+    print(f"Error: {config_path}: expected an object with a 'migrations' object", file=sys.stderr)
+    sys.exit(2)
+pattern = migrations.get("glob", "")
+if not isinstance(pattern, str):
+    print(f"Error: {config_path}: migrations.glob must be a string", file=sys.stderr)
+    sys.exit(2)
 if not pattern:
     # Project doesn't track migrations — nothing to be stale against.
     sys.exit(0)
@@ -60,11 +69,14 @@ if not files:
 latest = max(files, key=natural_key)
 
 try:
-    with open(schema_path) as f:
+    with open(schema_path, encoding="utf-8") as f:
         schema = f.read()
-except OSError:
+except FileNotFoundError:
     print(f"[prod-debug] schema.md not found (latest migration is {latest}) — run /prod-debug bootstrap.")
     sys.exit(1)
+except (OSError, UnicodeDecodeError) as e:
+    print(f"Error: cannot read {schema_path}: {e}", file=sys.stderr)
+    sys.exit(2)
 
 m = re.search(r"<!--\s*prod-debug:last-migration:\s*(\S+)\s*-->", schema)
 if not m:

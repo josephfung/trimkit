@@ -127,3 +127,10 @@ run_hook() {
   assert_success
   assert_output ""
 }
+
+@test "unparseable config.json is reported rather than silently ignored" {
+  echo '{bad' > "$WS/.claude/prod-debug/config.json"
+  run_hook "$MAIN/src/db/migrations/001_init.sql"
+  assert_success
+  assert_output --partial "Could not parse $WS/.claude/prod-debug/config.json"
+}

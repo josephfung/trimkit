@@ -89,6 +89,13 @@ check_candidate() {
   project_root="$(find_project_root "$(dirname "$candidate")")" || return 1
   config="$project_root/.claude/prod-debug/config.json"
 
+  # A config that exists but won't parse would otherwise make every read below
+  # come back empty, and the hook would go silent. Say so once and stop.
+  if ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$config" 2>/dev/null; then
+    printf '\n[prod-debug] Could not parse %s, so schema/containers auto-sync is disabled until it is fixed.\n' "$config"
+    return 0
+  fi
+
   # Show a project-relative path when the written file is under the project
   # root; otherwise (e.g. a worktree outside it) the absolute path.
   rel_path="${original#"$project_root"/}"

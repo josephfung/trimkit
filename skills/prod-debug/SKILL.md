@@ -51,7 +51,9 @@ It compares the newest migration matching `migrations.glob` against the `prod-de
 [prod-debug] schema.md is stale (068_foo.sql vs 085_bar.sql) — run /prod-debug bootstrap.
 ```
 
-If it prints a warning, include it verbatim at the top of the Step 5 announcement. Don't bootstrap automatically; offer to. If the script is not installed, do the same comparison by hand: newest matching migration filename vs the marker.
+If it prints a warning, include it verbatim at the top of the Step 5 announcement. If it exits 2 (or any other code), report its stderr verbatim instead: config.json or schema.md is unreadable, and the auto-sync hook is also disabled until that's fixed.
+
+The check reads the local checkout the glob points at. Migrations merged by others don't show up until that checkout is pulled. Don't bootstrap automatically; offer to. If the script is not installed, do the same comparison by hand: newest matching migration filename vs the marker.
 
 ### Step 5: Announce
 
