@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# trimkit-prod-debug-staleness — check whether a project's prod-debug schema.md
+# is behind its migrations.
+#
+# Usage: trimkit-prod-debug-staleness <project_root>
+#
+# Compares the newest migration file matching `migrations.glob` in
+# <project_root>/.claude/prod-debug/config.json against the machine-readable
+# marker that `/prod-debug bootstrap` writes into schema.md:
+#
+#   <!-- prod-debug:last-migration: 085_contact_anchored_kg_identity.sql -->
+#
+# "Newest" uses a natural sort of the file basenames, so 100_x sorts after 99_x.
+#
+# Exit codes / output:
+#   0  schema.md is current (or there's nothing to compare) — no output
+#   1  schema.md is stale, or has no marker — prints a one-line warning
+#   2  usage or config error — prints an error to stderr
+#
+# Why a marker instead of parsing the "Last bootstrapped" prose: the header is
+# free text written by Claude and varies between bootstraps, so it can't be
+# compared reliably.
+
+set -euo pipefail
+
+if [ $# -ne 1 ]; then
+  echo "Error: missing project_root argument" >&2
+  echo "Usage: trimkit-prod-debug-staleness <project_root>" >&2
+  exit 2
+fi
+
+exec python3 - "$1" <<'PY'
+import glob, json, os, re, sys
+
+root = sys.argv[1]
+config_path = os.path.join(root, ".claude", "prod-debug", "config.json")
+schema_path = os.path.join(root, ".claude", "prod-debug", "schema.md")
+
+try:
+    with open(config_path) as f:
+        config = json.load(f)
+except (OSError, ValueError) as e:
+    print(f"Error: cannot read {config_path}: {e}", file=sys.stderr)
+    sys.exit(2)
+
+pattern = config.get("migrations", {}).get("glob", "")
+if not pattern:
+    # Project doesn't track migrations — nothing to be stale against.
+    sys.exit(0)
+
+def natural_key(name):
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", name)]
+
+files = [os.path.basename(p) for p in glob.glob(os.path.join(root, pattern), recursive=True)]
+if not files:
+    # A glob that matches nothing is almost certainly a config mistake; say so
+    # rather than silently reporting "fresh".
+    print(f"[prod-debug] No migrations match '{pattern}' under {root} — check migrations.glob in config.json.")
+    sys.exit(1)
+latest = max(files, key=natural_key)
+
+try:
+    with open(schema_path) as f:
+        schema = f.read()
+except OSError:
+    print(f"[prod-debug] schema.md not found (latest migration is {latest}) — run /prod-debug bootstrap.")
+    sys.exit(1)
+
+m = re.search(r"<!--\s*prod-debug:last-migration:\s*(\S+)\s*-->", schema)
+if not m:
+    print(f"[prod-debug] schema.md has no last-migration marker, so staleness can't be checked "
+          f"(latest migration is {latest}) — run /prod-debug bootstrap to add one.")
+    sys.exit(1)
+recorded = m.group(1)
+
+if natural_key(latest) > natural_key(recorded):
+    print(f"[prod-debug] schema.md is stale ({recorded} vs {latest}) — run /prod-debug bootstrap.")
+    sys.exit(1)
+
+# recorded >= latest: current. (recorded > latest just means this checkout is
+# behind the one schema.md was built from — schema.md isn't the stale side.)
+sys.exit(0)
+PY
