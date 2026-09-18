@@ -58,7 +58,7 @@ If it prints a warning, include it verbatim at the top of the Step 5 announcemen
 Report a brief summary:
 ```
 Prod-debug loaded.
-  Schema: {N} tables (through {last-migration marker})
+  Schema: {N} tables (through {last-migration marker, or "unknown" if absent})
   Containers: {M} services
   Env: {hostname or domain from prod-env.md}
 Ready — ask me to query the DB, inspect logs, or diagnose an issue.

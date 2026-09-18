@@ -63,6 +63,8 @@ main_checkout_equivalent() {
   toplevel="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 0
   # --git-common-dir is the shared .git dir; for a linked worktree it points at
   # the main checkout's .git rather than .git/worktrees/<name>.
+  # --path-format needs git >= 2.31; on older git this fails and worktree
+  # matching is skipped (direct matching still works).
   common_dir="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
   [ "$(basename "$common_dir")" = ".git" ] || return 0  # bare repo: no main checkout
 
