@@ -12,6 +12,11 @@ All notable changes to TrimKit are documented here.
 - `/sysops learnings` sub-command — view stored learnings for all deployments or a specific one
 - SKILL.md refactored from ~170 lines of inline Python to a ~30-line routing layer that delegates to the bin scripts
 
+### prod-debug
+- `prod-debug.sh` hook is worktree-aware: writes inside a linked git worktree are mapped back to the main checkout before matching `migrations.glob` and `containers.composeFiles`, so schema/containers sync fires under the worktree workflow (#34)
+- `trimkit-prod-debug-staleness` — bin script that compares the newest migration against schema.md's `prod-debug:last-migration` marker; `/prod-debug` runs it on load and prints a staleness warning naming both versions
+- `/prod-debug bootstrap` writes a machine-readable `<!-- prod-debug:last-migration: ... -->` marker into the schema.md header
+
 ### CLAUDE.md guidance
 - Pull before branching — injected instruction to run `git pull --ff-only` before creating worktrees or branches
 - Issue tracker hygiene — injected instructions to apply pre-existing labels and include acceptance criteria when creating or editing issues

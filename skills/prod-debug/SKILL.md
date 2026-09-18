@@ -37,18 +37,34 @@ Read all three data files using the Read tool:
 
 If any file is missing, note it and proceed with what's available.
 
-### Step 4: Announce
+### Step 4: Check schema staleness
+
+Run:
+
+```bash
+~/.trimkit/bin/trimkit-prod-debug-staleness {project_root}
+```
+
+It compares the newest migration matching `migrations.glob` against the `prod-debug:last-migration` marker in schema.md. It prints nothing (exit 0) when schema.md is current, and a one-line warning (exit 1) when it is stale or has no marker, e.g.:
+
+```
+[prod-debug] schema.md is stale (068_foo.sql vs 085_bar.sql) — run /prod-debug bootstrap.
+```
+
+If it prints a warning, include it verbatim at the top of the Step 5 announcement. Don't bootstrap automatically; offer to. If the script is not installed, do the same comparison by hand: newest matching migration filename vs the marker.
+
+### Step 5: Announce
 
 Report a brief summary:
 ```
 Prod-debug loaded.
-  Schema: {N} tables
+  Schema: {N} tables (through {last-migration marker})
   Containers: {M} services
   Env: {hostname or domain from prod-env.md}
 Ready — ask me to query the DB, inspect logs, or diagnose an issue.
 ```
 
-### Step 5: Enter debugging mode
+### Step 6: Enter debugging mode
 
 Use the loaded context to assist with:
 
@@ -100,6 +116,7 @@ Read `{project_root}/.claude/prod-debug/config.json`. It has this shape:
 ```markdown
 # DB Schema
 <!-- Last bootstrapped: {ISO date} from {N} migrations -->
+<!-- prod-debug:last-migration: {basename of the newest migration file, e.g. 085_add_widgets.sql} -->
 
 ## Extensions
 - pgvector
@@ -118,6 +135,8 @@ Read `{project_root}/.claude/prod-debug/config.json`. It has this shape:
 ```
 
 One section per table, ordered by first appearance in migrations.
+
+The `prod-debug:last-migration` line is machine-read by `trimkit-prod-debug-staleness`. Always write it, exactly in that form, with the newest migration's basename ("newest" = last in natural filename order).
 
 ### Step 3: Build containers.md
 
@@ -172,7 +191,9 @@ Bootstrap complete. One more step:
 
 When the `prod-debug.sh` PostToolUse hook fires after a migration or compose file is written, it prints an update instruction to stdout. You will see it as context in the same response. Act on it immediately:
 
-- **Migration update instruction** → read the new migration file and apply the delta to `schema.md` (add new table or columns, note dropped columns)
+- **Migration update instruction** → read the new migration file and apply the delta to `schema.md` (add new table or columns, note dropped columns). If the migration sorts after the current `prod-debug:last-migration` marker, update the marker to its basename.
 - **Compose update instruction** → re-read the relevant compose file and update the affected service entry in `containers.md`
 
 Do these updates inline without waiting to be asked — the point is that schema.md stays in sync automatically.
+
+The hook is worktree-aware. `config.json` globs usually point into a main checkout (e.g. `repos/app/src/db/migrations/*.sql`), but the hook also fires for writes inside a linked git worktree of that repo (e.g. `worktrees/app-feat/src/db/migrations/086_x.sql`). It maps the path back to the main checkout before matching. Migrations that arrive only via `git pull` still skip the hook. The Step 4 staleness check catches those.

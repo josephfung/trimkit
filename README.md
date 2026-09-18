@@ -15,7 +15,7 @@ TrimKit runs quietly in the background. It ships with practical out-of-the-box p
 | Hook | Description |
 |------|-------------|
 | `no-chaining.sh` | Blocks `&&` and `\|\|` command chaining in Bash tool calls, with an allowlist for safe read-only commands and npm scripts |
-| `prod-debug.sh` | Watches migration and compose file writes and prompts Claude to keep prod-debug data files in sync |
+| `prod-debug.sh` | Watches migration and compose file writes (including inside linked git worktrees) and prompts Claude to keep prod-debug data files in sync |
 
 **Agents**
 
@@ -28,7 +28,7 @@ TrimKit runs quietly in the background. It ships with practical out-of-the-box p
 | Skill | Command | Description |
 |-------|---------|-------------|
 | `sysops` | `/sysops [args]` | Health checks and updates via the sysops agent |
-| `prod-debug` | `/prod-debug [args]` | Production debugging with pre-loaded DB schema and container registry |
+| `prod-debug` | `/prod-debug [args]` | Production debugging with pre-loaded DB schema and container registry; warns when schema.md is behind the migrations |
 
 **Plugins**
 
