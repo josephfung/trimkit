@@ -89,10 +89,34 @@ check_candidate() {
   project_root="$(find_project_root "$(dirname "$candidate")")" || return 1
   config="$project_root/.claude/prod-debug/config.json"
 
-  # A config that exists but won't parse would otherwise make every read below
-  # come back empty, and the hook would go silent. Say so once and stop.
-  if ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$config" 2>/dev/null; then
-    printf '\n[prod-debug] Could not parse %s, so schema/containers auto-sync is disabled until it is fixed.\n' "$config"
+  # A config that won't parse, or parses with the wrong shape (e.g. a string
+  # where an object belongs), would otherwise make every read below come back
+  # empty via `|| true`, and the hook would go silent. Say so once and stop.
+  local config_error
+  config_error="$(python3 -c "
+import json, sys
+try:
+  with open(sys.argv[1]) as f:
+    d = json.load(f)
+except (OSError, ValueError) as e:
+  print(f'could not parse it ({e})'); sys.exit(0)
+if not isinstance(d, dict):
+  print('top level must be an object'); sys.exit(0)
+m = d.get('migrations', {})
+if not isinstance(m, dict):
+  print('migrations must be an object')
+elif not isinstance(m.get('glob', ''), str):
+  print('migrations.glob must be a string')
+c = d.get('containers', {})
+if not isinstance(c, dict):
+  print('containers must be an object')
+else:
+  cf = c.get('composeFiles', [])
+  if not isinstance(cf, list) or not all(isinstance(x, str) for x in cf):
+    print('containers.composeFiles must be an array of strings')
+" "$config" 2>&1 || echo "validation failed")"
+  if [ -n "$config_error" ]; then
+    printf '\n[prod-debug] Invalid %s: %s. Schema/containers auto-sync is disabled until it is fixed.\n' "$config" "$(printf '%s' "$config_error" | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
     return 0
   fi
 

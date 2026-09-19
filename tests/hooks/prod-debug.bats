@@ -132,5 +132,26 @@ run_hook() {
   echo '{bad' > "$WS/.claude/prod-debug/config.json"
   run_hook "$MAIN/src/db/migrations/001_init.sql"
   assert_success
-  assert_output --partial "Could not parse $WS/.claude/prod-debug/config.json"
+  assert_output --partial "Invalid $WS/.claude/prod-debug/config.json: could not parse it"
+}
+
+@test "migrations with the wrong shape is reported rather than silently ignored" {
+  echo '{"migrations":"repos/app/src/db/migrations/*.sql"}' > "$WS/.claude/prod-debug/config.json"
+  run_hook "$MAIN/src/db/migrations/001_init.sql"
+  assert_success
+  assert_output --partial "migrations must be an object"
+}
+
+@test "non-string migrations.glob is reported" {
+  echo '{"migrations":{"glob":["repos/app/src/db/migrations/*.sql"]}}' > "$WS/.claude/prod-debug/config.json"
+  run_hook "$MAIN/src/db/migrations/001_init.sql"
+  assert_success
+  assert_output --partial "migrations.glob must be a string"
+}
+
+@test "non-array containers.composeFiles is reported" {
+  echo '{"migrations":{"glob":"repos/app/src/db/migrations/*.sql"},"containers":{"composeFiles":"repos/app/docker-compose.yml"}}' > "$WS/.claude/prod-debug/config.json"
+  run_hook "$MAIN/docker-compose.yml"
+  assert_success
+  assert_output --partial "containers.composeFiles must be an array of strings"
 }
