@@ -108,7 +108,7 @@ Read `{project_root}/.claude/prod-debug/config.json`. It has this shape:
 ### Step 2: Build schema.md
 
 1. Find all migration files matching `migrations.glob` (resolved from project root)
-2. Read them **in filename order** (they are numbered, so lexicographic = chronological)
+2. Read them **in natural filename order**: compare numeric runs as numbers, so `100_x.sql` comes after `99_y.sql`. This is the same order `trimkit-prod-debug-staleness` uses to find the newest migration.
 3. Parse each migration to extract DDL: `CREATE TABLE`, `ALTER TABLE ADD COLUMN`, `ALTER TABLE DROP COLUMN`, `CREATE INDEX`, `CREATE EXTENSION`
 4. Build a cumulative schema — start from empty, apply each migration in sequence
 5. Write the result to `{project_root}/.claude/prod-debug/schema.md`
